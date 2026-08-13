@@ -17,10 +17,13 @@ namespace CameraControl
     /// </summary>
     public partial class MainWindow : Window
     {
+        private MainViewModel _vm;
         public MainWindow()
         {
             InitializeComponent();
-            DataContext = new MainViewModel();
+            _vm = new MainViewModel();
+            DataContext = _vm;
+
         }
     }
 }

@@ -10,9 +10,16 @@ namespace CameraControl.ViewModels
 {
     internal class MainViewModel 
     {
-        public LogViewModel LogVM { get; } = App.LogVM;   // 引用全局单例
-        IDevice? device =null;
+        /// <summary>
+        /// 日志存储
+        /// </summary>
+        public LogViewModel LogVM { get; } = App.LogVM;
 
+        // 相机对象
+        IDevice? _camera = null;
+        private IntPtr _displayHandle;   // PictureBox 的句柄
+
+        // 命令绑定
         public ICommand SingleCaptureCommand { get; }
         public ICommand ContinuousCaptureCommand { get; }
 
@@ -27,15 +34,21 @@ namespace CameraControl.ViewModels
 
         }
 
+
+
+
         /// <summary>
         /// 相机设备枚举和创建
         /// </summary>
         public void DeviceCamera()
         {
+            string deviceIp = "192.168.1.10"; //相机IP
+            string netExportIP = "192.168.1.100"; //pc网卡IP
+
             //枚举设备，获取设备信息
             List<IDeviceInfo> devInfoList = null;
             int ret = DeviceEnumerator.EnumDevicesEx(
-                 DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice,"", out devInfoList);
+                 DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice, "", out devInfoList);
             if (ret == MvError.MV_OK)
             {
                 /*处理XXX厂商的相机*/
@@ -44,30 +57,27 @@ namespace CameraControl.ViewModels
                     App.LogVM.AddLog($"型号: {dev.ModelName}, 厂商: {dev.ManufacturerName}, 序列号: {dev.SerialNumber}");
             }
 
-            string deviceIp = "169.254.217.149"; //相机IP
-            string netExportIP = "169.254.50.1"; //pc网卡IP
-            
-
             //创建相机对象
             try
             {
-                device = DeviceFactory.CreateDeviceByIp(deviceIp, netExportIP);//
+                _camera = DeviceFactory.CreateDeviceByIp(deviceIp, netExportIP);//
+
+                // 3. 打开设备
+                int retOpen = _camera.Open();
+                if (retOpen != MvError.MV_OK)//打开相机失败
+                {
+                    LogVM.AddLog($"打开相机失败: {ret:X}");
+                    _camera.Dispose();
+                    _camera = null;
+                    return;
+                }
+
+                LogVM.AddLog($"相机 {_camera} 打开成功");
             }
             catch (Exception e)
             {
-                App.LogVM.AddLog($"创建相机对象失败: {e.Message}");
+                App.LogVM.AddLog($"打开相机失败: {e.Message}");
                 throw;
-            }
-
-            int retOpen = device.Open();
-            if (ret != MvError.MV_OK)
-            {
-                App.LogVM.AddLog($"打开相机失败: {retOpen}");
-            }
-            else
-            {
-                App.LogVM.AddLog($"打开相机成功: {deviceIp}");
-                //TODO：配置相机参数等操作
             }
         }
 
