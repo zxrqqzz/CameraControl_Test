@@ -65,6 +65,8 @@
                                  IsChecked="{Binding IsMainView, Mode=OneWay}" Command="{Binding ShowMainViewCommand}"/>
                     <RadioButton Content="标定界面" GroupName="Nav" Style="{StaticResource NavItemStyle}"
                                  IsChecked="{Binding IsCalibrationView, Mode=OneWay}" Command="{Binding ShowCalibrationViewCommand}"/>
+                    <RadioButton Content="标定工具" GroupName="Nav" Style="{StaticResource NavItemStyle}"
+                                 IsChecked="{Binding IsCalibrationToolsView, Mode=OneWay}" Command="{Binding ShowCalibrationToolsViewCommand}"/>
                 </StackPanel>
             </Border>
 
@@ -135,6 +137,10 @@
             <!-- 标定界面 -->
             <views:CalibrationView Grid.Column="1" DataContext="{Binding CalibrationVM}"
                                    Visibility="{Binding DataContext.IsCalibrationView, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
+
+            <!-- 标定工具界面 -->
+            <views:CalibrationToolsView Grid.Column="1" DataContext="{Binding CalibrationVM}"
+                                        Visibility="{Binding DataContext.IsCalibrationToolsView, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
         </Grid>
     </Grid>
 </Window>

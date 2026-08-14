@@ -35,8 +35,10 @@ namespace CameraControl.ViewModels
         // 导航
         public bool IsMainView { get; private set; } = true;
         public bool IsCalibrationView { get; private set; }
+        public bool IsCalibrationToolsView { get; private set; }
         public ICommand ShowMainViewCommand { get; }
         public ICommand ShowCalibrationViewCommand { get; }
+        public ICommand ShowCalibrationToolsViewCommand { get; }
 
         // 标定界面
         public CalibrationViewModel CalibrationVM { get; }
@@ -68,6 +70,7 @@ namespace CameraControl.ViewModels
 
             ShowMainViewCommand = new RelayCommand(ShowMainView);
             ShowCalibrationViewCommand = new RelayCommand(ShowCalibrationView);
+            ShowCalibrationToolsViewCommand = new RelayCommand(ShowCalibrationToolsView);
 
             CalibrationVM = App.Calibration;
 
@@ -80,8 +83,10 @@ namespace CameraControl.ViewModels
         {
             IsMainView = true;
             IsCalibrationView = false;
+            IsCalibrationToolsView = false;
             OnPropertyChanged(nameof(IsMainView));
             OnPropertyChanged(nameof(IsCalibrationView));
+            OnPropertyChanged(nameof(IsCalibrationToolsView));
         }
 
         /// <summary>切换到标定界面</summary>
@@ -89,8 +94,21 @@ namespace CameraControl.ViewModels
         {
             IsMainView = false;
             IsCalibrationView = true;
+            IsCalibrationToolsView = false;
             OnPropertyChanged(nameof(IsMainView));
             OnPropertyChanged(nameof(IsCalibrationView));
+            OnPropertyChanged(nameof(IsCalibrationToolsView));
+        }
+
+        /// <summary>切换到标定工具界面</summary>
+        private void ShowCalibrationToolsView()
+        {
+            IsMainView = false;
+            IsCalibrationView = false;
+            IsCalibrationToolsView = true;
+            OnPropertyChanged(nameof(IsMainView));
+            OnPropertyChanged(nameof(IsCalibrationView));
+            OnPropertyChanged(nameof(IsCalibrationToolsView));
         }
 
         /// <summary>

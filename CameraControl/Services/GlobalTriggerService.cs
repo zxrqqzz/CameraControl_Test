@@ -70,8 +70,12 @@ namespace CameraControl.Services
                         Enabled = ts.Enabled,
                         RecordRead = ts.RecordRead,
                         RecordConvert = ts.RecordConvert,
+                        Record2D = ts.Record2D,
                         ReadRobot = ts.ReadRobot,
-                        Convert6Axis = ts.Convert6Axis
+                        Convert2D = ts.Convert2D,
+                        Convert6Axis = ts.Convert6Axis,
+                        Continuous = ts.Continuous,
+                        ExecCountText = Math.Max(1, ts.ExecCount).ToString()
                     };
                     t.PropertyChanged += OnTriggerPropertyChanged;
                     Triggers.Add(t);
@@ -168,33 +172,56 @@ namespace CameraControl.Services
 
         /// <summary>
         /// 执行触发配置:
-        /// 1. 执行两个"保存记录坐标"按钮(记录读取坐标、记录转换坐标)
-        /// 2. 依次执行"读取机器人位置"、"转换为6轴坐标"
-        /// 返回两条统一格式的数据: 机器人坐标:...、转换后的6轴坐标:...
+        /// 1. 执行三个"保存记录坐标"按钮(记录读取坐标、记录转换坐标、记录二维坐标)
+        /// 2. 依次执行"读取机器人位置"、"转为二维坐标"、"转换为6轴坐标"
+        /// 3. 若开启"连续执行"，按设定次数重复执行第2步
+        /// 返回各步骤的统一格式数据(机器人坐标 / 二维坐标 / 转换后的6轴坐标)。
         /// </summary>
         private async Task<List<string>> ExecuteSequenceAsync(StringTrigger trigger)
         {
             var responses = new List<string>();
 
-            // 1. 两个用于保存记录坐标的按钮(开启记录)
+            // 1. 三个用于保存记录坐标的按钮(开启记录)
             if (trigger.RecordRead) _calibration.IsRecordingRead = true;
             if (trigger.RecordConvert) _calibration.IsRecordingConvert = true;
+            if (trigger.Record2D) _calibration.IsRecording2D = true;
 
-            // 2. 依次执行读取机器人位置 → 转换为6轴坐标
-            RobotModel? robot = null;
-            RobotModel? converted = null;
-            if (trigger.ReadRobot || trigger.Convert6Axis)
+            // 2. 连续执行次数
+            int count = trigger.Continuous ? trigger.ExecCount : 1;
+            bool needRead = trigger.ReadRobot || trigger.Convert2D || trigger.Convert6Axis;
+
+            for (int i = 0; i < count; i++)
             {
-                robot = await _calibration.ReadRobotAndRecordAsync();
-                if (trigger.Convert6Axis)
-                    converted = await _calibration.ConvertCurrentTo6AxisAsync(robot);
-            }
+                // 读取机器人位置
+                RobotModel? robot = null;
+                if (needRead)
+                    robot = await _calibration.ReadRobotAndRecordAsync();
 
-            // 3. 依次回传数据(两条回复统一使用相同的完整坐标格式)
-            if (trigger.ReadRobot && robot != null)
-                responses.Add("机器人坐标:" + FormatPosition(robot));
-            if (trigger.Convert6Axis && converted != null)
-                responses.Add("转换后的6轴坐标:" + FormatPosition(converted));
+                // 转为二维坐标
+                if (trigger.Convert2D && robot != null)
+                {
+                    try
+                    {
+                        var (x2, y2) = _calibration.ConvertTo2D(robot);
+                        responses.Add("二维坐标:" + Format2D(x2, y2));
+                    }
+                    catch (Exception e)
+                    {
+                        App.LogVM.AddLog("转为二维坐标失败: " + e.Message);
+                    }
+                }
+
+                // 转换为6轴坐标
+                RobotModel? converted = null;
+                if (trigger.Convert6Axis && robot != null)
+                    converted = await _calibration.ConvertCurrentTo6AxisAsync(robot);
+
+                // 依次回传数据
+                if (trigger.ReadRobot && robot != null)
+                    responses.Add("机器人坐标:" + FormatPosition(robot));
+                if (trigger.Convert6Axis && converted != null)
+                    responses.Add("转换后的6轴坐标:" + FormatPosition(converted));
+            }
 
             return responses;
         }
@@ -212,5 +239,8 @@ namespace CameraControl.Services
                    $"Rx={m.Cartesian[3]:F3},Ry={m.Cartesian[4]:F3},Rz={m.Cartesian[5]:F3}," +
                    $"S={m.Ax1:F3},L={m.Ax2:F3},U={m.Ax3:F3},R={m.Ax4:F3},B={m.Ax5:F3},T={m.Ax6:F3}";
         }
+
+        /// <summary>二维坐标格式: X：数据，Y：数据</summary>
+        private static string Format2D(double x2, double y2) => $"X：{x2:F3}，Y：{y2:F3}";
     }
 }

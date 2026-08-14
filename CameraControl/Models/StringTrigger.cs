@@ -15,8 +15,8 @@ namespace CameraControl.Models
 
     /// <summary>
     /// 字符串触发条目(全局触发)
-    /// 有序号、触发字符、匹配模式与触发配置(记录读取/转换坐标、读取机器人位置、转换为6轴坐标)。
-    /// 触发命中后按配置依次执行，并通过接收设备回传数据。
+    /// 有序号、触发字符、匹配模式与触发配置(记录读取/转换/二维坐标、读取机器人位置、转为二维坐标、转换为6轴坐标)
+    /// 以及连续执行(执行次数)。触发命中后按配置依次执行，并通过接收设备回传数据。
     /// </summary>
     public class StringTrigger : INotifyPropertyChanged
     {
@@ -28,8 +28,14 @@ namespace CameraControl.Models
         // 触发配置
         private bool _recordRead = true;
         private bool _recordConvert = true;
+        private bool _record2D = true;
         private bool _readRobot = true;
+        private bool _convert2D = true;
         private bool _convert6Axis = true;
+
+        // 连续执行
+        private bool _continuous;
+        private string _execCountText = "1";
 
         /// <summary>序号</summary>
         public int Index
@@ -73,11 +79,25 @@ namespace CameraControl.Models
             set { _recordConvert = value; OnPropertyChanged(); }
         }
 
+        /// <summary>触发配置: 记录二维坐标</summary>
+        public bool Record2D
+        {
+            get => _record2D;
+            set { _record2D = value; OnPropertyChanged(); }
+        }
+
         /// <summary>触发配置: 读取机器人位置</summary>
         public bool ReadRobot
         {
             get => _readRobot;
             set { _readRobot = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>触发配置: 转为二维坐标</summary>
+        public bool Convert2D
+        {
+            get => _convert2D;
+            set { _convert2D = value; OnPropertyChanged(); }
         }
 
         /// <summary>触发配置: 转换为6轴坐标</summary>
@@ -86,6 +106,23 @@ namespace CameraControl.Models
             get => _convert6Axis;
             set { _convert6Axis = value; OnPropertyChanged(); }
         }
+
+        /// <summary>连续执行开关</summary>
+        public bool Continuous
+        {
+            get => _continuous;
+            set { _continuous = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>执行次数(文本，非法输入时回退为1)</summary>
+        public string ExecCountText
+        {
+            get => _execCountText;
+            set { _execCountText = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>解析后的执行次数(至少1次)</summary>
+        public int ExecCount => int.TryParse(_execCountText, out int v) && v >= 1 ? v : 1;
 
         /// <summary>匹配模式显示文本</summary>
         public string MatchModeText => MatchMode switch

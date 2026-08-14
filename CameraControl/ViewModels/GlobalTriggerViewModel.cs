@@ -11,7 +11,8 @@ namespace CameraControl.ViewModels
 {
     /// <summary>
     /// 全局触发 ViewModel(添加/删除/测试字符串触发)
-    /// 触发配置: 执行两个保存记录坐标按钮 → 读取机器人位置 → 转换为6轴坐标 → 回传数据。
+    /// 触发配置: 执行保存记录坐标按钮 → 读取机器人位置 → 转为二维坐标 → 转换为6轴坐标 → 回传数据，
+    /// 可开启连续执行并设定执行次数。
     /// </summary>
     public class GlobalTriggerViewModel : INotifyPropertyChanged
     {

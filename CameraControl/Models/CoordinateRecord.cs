@@ -68,4 +68,20 @@ namespace CameraControl.Models
             "X2(mm)\tY2(mm)\t" +
             "PulseS\tPulseL\tPulseU\tPulseR\tPulseB\tPulseT";
     }
+
+    /// <summary>
+    /// 二维坐标记录(仅 X2/Y2)
+    /// 输出格式: X：数据，Y：数据
+    /// </summary>
+    public class TwoDRecord
+    {
+        /// <summary>二维坐标 X(mm)</summary>
+        public double X { get; set; }
+
+        /// <summary>二维坐标 Y(mm)</summary>
+        public double Y { get; set; }
+
+        /// <summary>输出文本(格式: X：数据，Y：数据)</summary>
+        public string Display => $"X：{X:F3}，Y：{Y:F3}";
+    }
 }

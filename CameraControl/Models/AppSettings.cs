@@ -38,7 +38,11 @@ namespace CameraControl.Models
         public bool Enabled { get; set; } = true;
         public bool RecordRead { get; set; } = true;
         public bool RecordConvert { get; set; } = true;
+        public bool Record2D { get; set; } = true;
         public bool ReadRobot { get; set; } = true;
+        public bool Convert2D { get; set; } = true;
         public bool Convert6Axis { get; set; } = true;
+        public bool Continuous { get; set; }
+        public int ExecCount { get; set; } = 1;
     }
 }

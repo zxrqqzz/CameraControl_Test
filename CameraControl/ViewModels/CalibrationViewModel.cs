@@ -136,6 +136,9 @@ namespace CameraControl.ViewModels
         /// <summary>转换后的坐标记录</summary>
         public ObservableCollection<CoordinateRecord> ConvertRecords { get; } = new ObservableCollection<CoordinateRecord>();
 
+        /// <summary>二维坐标记录(格式 "X：数据，Y：数据")</summary>
+        public ObservableCollection<TwoDRecord> Record2DList { get; } = new ObservableCollection<TwoDRecord>();
+
         private bool _isRecordingRead;
         /// <summary>记录读取坐标开关(按下开始记录，再次点击停止并保存)</summary>
         public bool IsRecordingRead
@@ -167,6 +170,23 @@ namespace CameraControl.ViewModels
                     LogVM.AddLog("已开启记录: 之后转换的坐标将被存储，再次点击\"记录转换坐标\"保存。");
                 else
                     SaveConvertData();
+            }
+        }
+
+        private bool _isRecording2D;
+        /// <summary>记录二维坐标开关(按下开始记录，再次点击停止并保存)</summary>
+        public bool IsRecording2D
+        {
+            get => _isRecording2D;
+            set
+            {
+                if (_isRecording2D == value) return;
+                _isRecording2D = value;
+                OnPropertyChanged();
+                if (value)
+                    LogVM.AddLog("已开启记录: 之后转换的二维坐标将被存储，再次点击\"记录二维坐标\"保存。");
+                else
+                    SaveRecord2DData();
             }
         }
 
@@ -281,6 +301,7 @@ namespace CameraControl.ViewModels
                 InputY2 = rec.Y2.ToString("F3");
             }
             if (IsRecordingRead) ReadRecords.Add(rec);
+            if (_frame.IsValid) Record2DCoordinate(rec.X2, rec.Y2);
             return m;
         }
 
@@ -321,6 +342,23 @@ namespace CameraControl.ViewModels
             Array.Copy(robot.Pulse, rec.Pulse, rec.Pulse.Length);
             if (IsRecordingConvert) ConvertRecords.Add(rec);
             return m;
+        }
+
+        /// <summary>
+        /// 将机器人位置转为二维坐标(读取并转为二维坐标，供全局触发使用)。
+        /// 仅投影并量化，不做记录(记录二维坐标由"记录二维坐标"开关在读取路径完成)。
+        /// </summary>
+        public (double X2, double Y2) ConvertTo2D(RobotModel robot)
+        {
+            if (!_frame.IsValid)
+                throw new InvalidOperationException("尚未完成标定，无法转换为二维坐标。请先在标定界面建立二维直角坐标系。");
+
+            var p = _frame.Project(robot.X, robot.Y, robot.Z);
+            double x2 = Round2D(p.X2);
+            double y2 = Round2D(p.Y2);
+            InputX2 = x2.ToString("F3");
+            InputY2 = y2.ToString("F3");
+            return (x2, y2);
         }
 
         private bool _isConnecting;
@@ -478,6 +516,9 @@ namespace CameraControl.ViewModels
                 InputX2 = x2.ToString("F3");
                 InputY2 = y2.ToString("F3");
 
+                // 记录二维坐标
+                Record2DCoordinate(x2, y2);
+
                 // 记录读取坐标(实际坐标)
                 var rec = new CoordinateRecord
                 {
@@ -503,6 +544,7 @@ namespace CameraControl.ViewModels
                 sb.AppendLine($"  => 二维坐标: X2={x2:F3}, Y2={y2:F3} (精度 {CurrentSettings.PrecisionMm:0.###}mm)");
                 sb.AppendLine("  已自动填入手动输入框，可直接调整后点击\"转换为6轴坐标\"。");
                 if (IsRecordingRead) sb.AppendLine("  已记录到读取坐标列表。");
+                if (IsRecording2D) sb.AppendLine("  已记录到二维坐标记录。");
                 string warn = CheckRange(p.X2, p.Y2);
                 if (warn.Length > 0) sb.AppendLine("  " + warn);
                 OutputText = sb.ToString();
@@ -723,6 +765,68 @@ namespace CameraControl.ViewModels
         /// 保存转换后的坐标为 txt 文件
         /// </summary>
         private void SaveConvertData() => SaveRecords(ConvertRecords, "转换坐标");
+
+        /// <summary>
+        /// 记录二维坐标(仅 X2/Y2，格式 "X：数据，Y：数据")
+        /// </summary>
+        private void Record2DCoordinate(double x2, double y2)
+        {
+            if (!IsRecording2D) return;
+            Record2DList.Add(new TwoDRecord { X = x2, Y = y2 });
+        }
+
+        /// <summary>
+        /// 保存二维坐标记录为 txt 文件(每行格式: X：数据，Y：数据)
+        /// 无论保存成功、失败还是取消，都会清空记录。
+        /// </summary>
+        private void SaveRecord2DData()
+        {
+            if (Record2DList.Count == 0)
+            {
+                string msg = "没有可保存的二维坐标数据。";
+                OutputText = msg;
+                LogVM.AddLog(msg);
+                return;
+            }
+
+            var dlg = new SaveFileDialog
+            {
+                Title = "保存二维坐标",
+                Filter = "文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*",
+                DefaultExt = ".txt",
+                FileName = $"二维坐标_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
+            };
+
+            if (dlg.ShowDialog() == true)
+            {
+                try
+                {
+                    var sb = new StringBuilder();
+                    foreach (var r in Record2DList)
+                        sb.AppendLine(r.Display);
+                    File.WriteAllText(dlg.FileName, sb.ToString(), new UTF8Encoding(false));
+
+                    string msg = $"二维坐标已保存({Record2DList.Count}条): {dlg.FileName}";
+                    OutputText = msg;
+                    LogVM.AddLog(msg);
+                }
+                catch (Exception e)
+                {
+                    string msg = $"保存二维坐标失败: {e.Message}";
+                    OutputText = msg;
+                    LogVM.AddLog(msg);
+                }
+            }
+            else
+            {
+                string msg = "取消保存二维坐标，记录已清空。";
+                OutputText = msg;
+                LogVM.AddLog(msg);
+            }
+
+            // 松开按钮即清空记录(无论保存成功、失败还是取消)
+            Record2DList.Clear();
+        }
 
         /// <summary>
         /// 将记录保存为 txt 文件(带时间戳)。

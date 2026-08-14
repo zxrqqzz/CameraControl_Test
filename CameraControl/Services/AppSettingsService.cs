@@ -76,8 +76,12 @@ namespace CameraControl.Services
                     Enabled = t.Enabled,
                     RecordRead = t.RecordRead,
                     RecordConvert = t.RecordConvert,
+                    Record2D = t.Record2D,
                     ReadRobot = t.ReadRobot,
-                    Convert6Axis = t.Convert6Axis
+                    Convert2D = t.Convert2D,
+                    Convert6Axis = t.Convert6Axis,
+                    Continuous = t.Continuous,
+                    ExecCount = t.ExecCount
                 }).ToList()
             };
             Save(settings);

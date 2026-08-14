@@ -6,190 +6,92 @@
              mc:Ignorable="d"
              d:DesignHeight="450" d:DesignWidth="800">
     <Grid Margin="8">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="380"/>
-            <ColumnDefinition Width="16"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!-- ============ 左列: 机器人实际坐标(从主界面迁移) ============ -->
-        <DockPanel Grid.Column="0">
-            <!-- 连接区 -->
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
-                <TextBlock Text="机器人IP:" VerticalAlignment="Center" FontSize="14"/>
-                <TextBox Text="{Binding RobotIp, UpdateSourceTrigger=PropertyChanged}"
-                         Width="120" Height="26" Margin="4,0,6,0"
-                         VerticalContentAlignment="Center"/>
-                <Button Content="连接机器人" Command="{Binding ConnectCommand}"
-                        Width="90" Height="30" Margin="0,0,6,0"/>
+        <!-- 第一步: 标定点采集 -->
+        <Border Grid.Row="0" BorderBrush="Gray" BorderThickness="1" Margin="0,0,0,8" Padding="8">
+            <StackPanel>
+                <TextBlock Text="第一步: 三点确定一个平面，将机器人移动到原点、X轴上一点、Y轴上一点并读取"
+                           FontWeight="Bold" FontSize="13" Margin="0,0,0,6"/>
+                <UniformGrid Columns="3">
+                    <Button Content="读取原点" Command="{Binding ReadPointCommand}" CommandParameter="1" Height="34" Margin="2"/>
+                    <Button Content="读取X轴点" Command="{Binding ReadPointCommand}" CommandParameter="2" Height="34" Margin="2"/>
+                    <Button Content="读取Y轴点" Command="{Binding ReadPointCommand}" CommandParameter="3" Height="34" Margin="2"/>
+                </UniformGrid>
+                <ListBox ItemsSource="{Binding Points}" Height="120" Margin="0,6,0,0"
+                         FontFamily="Consolas" FontSize="13" Background="White">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <!-- 状态图标: 空心=未读取, 实心=已读取 -->
+                                <Ellipse Width="14" Height="14" Stroke="#FF007ACC" StrokeThickness="2"
+                                         Margin="0,0,6,0" VerticalAlignment="Center">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="Transparent"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRead}" Value="True">
+                                                    <Setter Property="Fill" Value="#FF007ACC"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="{Binding Display}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+        </Border>
+
+        <!-- 第二步: 计算标定 + 取值范围/精度设置 + 导出/导入 -->
+        <StackPanel Grid.Row="1" Margin="0,0,0,8">
+            <WrapPanel>
+                <Button Content="第二步: 建立二维直角坐标系(计算标定)"
+                        Command="{Binding CalculateCommand}"
+                        Width="240" Height="36" Margin="0,0,8,0" FontSize="13"/>
+                <!-- 取值范围/精度设置区 -->
+                <Border BorderBrush="DodgerBlue" BorderThickness="1" Margin="0,0,8,0"
+                        Padding="6,2" VerticalAlignment="Center">
+                    <Border.ToolTip>
+                        <TextBlock Text="物料板为 48cm(480mm)，坐标按 mm 输出。&#x0a;取值范围: 板宽/板高定义了 X2、Y2 的合法区间 [0~上限]mm。&#x0a;精度: 坐标输出按该值取整(如 1=mm, 0.1=亚毫米)。"/>
+                    </Border.ToolTip>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="板宽(mm):" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding BoardWidthText, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="52" Height="26" Margin="2,0,6,0"
+                                 VerticalContentAlignment="Center"/>
+                        <TextBlock Text="板高(mm):" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding BoardHeightText, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="52" Height="26" Margin="2,0,6,0"
+                                 VerticalContentAlignment="Center"/>
+                        <TextBlock Text="精度(mm):" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding PrecisionText, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="52" Height="26" Margin="2,0,0,0"
+                                 VerticalContentAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                <Button Content="导出坐标系" Command="{Binding ExportCommand}"
+                        Width="92" Height="30" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <Button Content="导入坐标系" Command="{Binding ImportCommand}"
+                        Width="92" Height="30" Margin="0,0,8,0" VerticalAlignment="Center"/>
                 <Button Content="清空标定" Command="{Binding ClearCommand}"
-                        Width="80" Height="30"/>
-            </StackPanel>
+                        Width="90" Height="30" VerticalAlignment="Center"/>
+            </WrapPanel>
+        </StackPanel>
 
-            <!-- 读取/保存按钮区 -->
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
-                <Button Content="读取机器人位置" Command="{Binding ReadRobotCommand}"
-                        Width="140" Height="34" FontSize="13" Margin="0,0,8,0"/>
-                <ToggleButton Content="记录读取坐标" IsChecked="{Binding IsRecordingRead}"
-                              Width="120" Height="34" FontSize="13">
-                    <ToggleButton.ToolTip>
-                        <TextBlock Text="按下: 开始记录之后读取的位置坐标&#x0a;再次点击: 停止记录并保存为txt文件后清空"/>
-                    </ToggleButton.ToolTip>
-                </ToggleButton>
-            </StackPanel>
-
-            <!-- 实际坐标显示 -->
-            <Border DockPanel.Dock="Top" BorderBrush="Gray" BorderThickness="1" Margin="0,0,0,6">
-                <TextBox Text="{Binding RobotOutputText, Mode=OneWay}"
-                         IsReadOnly="True" TextWrapping="Wrap"
-                         Height="120"
-                         VerticalScrollBarVisibility="Auto"
-                         FontFamily="Consolas" FontSize="12"
-                         Background="White" Foreground="Black" Padding="4"/>
-            </Border>
-
-            <!-- 读取坐标记录 -->
-            <TextBlock DockPanel.Dock="Top" Text="已读取的坐标(实际坐标):"
-                       FontWeight="Bold" FontSize="13" Margin="0,2,0,2"/>
-            <ListBox DockPanel.Dock="Top" ItemsSource="{Binding ReadRecords}" Height="110"
-                     Margin="0,0,0,6" FontFamily="Consolas" FontSize="12" Background="White">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding Display}" FontFamily="Consolas" FontSize="12"/>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-
-            <!-- 转换坐标记录 -->
-            <TextBlock DockPanel.Dock="Top" Text="转换后的坐标:"
-                       FontWeight="Bold" FontSize="13" Margin="0,2,0,2"/>
-            <ListBox ItemsSource="{Binding ConvertRecords}" Height="110"
-                     Margin="0,0,0,6" FontFamily="Consolas" FontSize="12" Background="White">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding Display}" FontFamily="Consolas" FontSize="12"/>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-
-            <TextBlock Text="提示: 记录按钮按下后存储对应坐标，再次点击停止并保存为txt文件后清空。"
-                       FontSize="12" Foreground="Gray" TextWrapping="Wrap"/>
-        </DockPanel>
-
-        <!-- 分隔条 -->
-        <Border Grid.Column="1" Background="#FFE0E0E0"/>
-
-        <!-- ============ 右列: 原标定界面 ============ -->
-        <Grid Grid.Column="2">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-
-            <!-- 标定点采集区 -->
-            <Border Grid.Row="0" BorderBrush="Gray" BorderThickness="1" Margin="0,0,0,8" Padding="8">
-                <StackPanel>
-                    <TextBlock Text="第一步: 三点确定一个平面，将机器人移动到原点、X轴上一点、Y轴上一点并读取"
-                               FontWeight="Bold" FontSize="13" Margin="0,0,0,6"/>
-                    <UniformGrid Columns="3">
-                        <Button Content="读取原点" Command="{Binding ReadPointCommand}" CommandParameter="1" Height="34" Margin="2"/>
-                        <Button Content="读取X轴点" Command="{Binding ReadPointCommand}" CommandParameter="2" Height="34" Margin="2"/>
-                        <Button Content="读取Y轴点" Command="{Binding ReadPointCommand}" CommandParameter="3" Height="34" Margin="2"/>
-                    </UniformGrid>
-                    <ListBox ItemsSource="{Binding Points}" Height="92" Margin="0,6,0,0"
-                             FontFamily="Consolas" FontSize="13" Background="White">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Orientation="Horizontal">
-                                    <!-- 状态图标: 空心=未读取, 实心=已读取 -->
-                                    <Ellipse Width="14" Height="14" Stroke="#FF007ACC" StrokeThickness="2"
-                                             Margin="0,0,6,0" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="Transparent"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsRead}" Value="True">
-                                                        <Setter Property="Fill" Value="#FF007ACC"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <TextBlock Text="{Binding Display}" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </StackPanel>
-            </Border>
-
-            <!-- 计算/转换区 -->
-            <StackPanel Grid.Row="1">
-                <WrapPanel>
-                    <Button Content="第二步: 建立二维直角坐标系(计算标定)"
-                            Command="{Binding CalculateCommand}"
-                            Width="240" Height="36" Margin="0,0,8,0" FontSize="13"/>
-                    <!-- 取值范围/精度设置区 -->
-                    <Border BorderBrush="DodgerBlue" BorderThickness="1" Margin="0,0,8,0"
-                            Padding="6,2" VerticalAlignment="Center">
-                        <Border.ToolTip>
-                            <TextBlock Text="物料板为 48cm(480mm)，坐标按 mm 输出。&#x0a;取值范围: 板宽/板高定义了 X2、Y2 的合法区间 [0~上限]mm。&#x0a;精度: 坐标输出按该值取整(如 1=mm, 0.1=亚毫米)。"/>
-                        </Border.ToolTip>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="板宽(mm):" FontSize="13" VerticalAlignment="Center"/>
-                            <TextBox Text="{Binding BoardWidthText, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="52" Height="26" Margin="2,0,6,0"
-                                     VerticalContentAlignment="Center"/>
-                            <TextBlock Text="板高(mm):" FontSize="13" VerticalAlignment="Center"/>
-                            <TextBox Text="{Binding BoardHeightText, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="52" Height="26" Margin="2,0,6,0"
-                                     VerticalContentAlignment="Center"/>
-                            <TextBlock Text="精度(mm):" FontSize="13" VerticalAlignment="Center"/>
-                            <TextBox Text="{Binding PrecisionText, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="52" Height="26" Margin="2,0,0,0"
-                                     VerticalContentAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-                    <Button Content="导出坐标系" Command="{Binding ExportCommand}"
-                            Width="92" Height="30" Margin="0,0,8,0"/>
-                    <Button Content="导入坐标系" Command="{Binding ImportCommand}"
-                            Width="92" Height="30" Margin="0,0,8,0"/>
-                    <Button Content="读取当前位姿并转为2轴坐标"
-                            Command="{Binding ConvertCurrentCommand}"
-                            Width="200" Height="30"/>
-                    <Button Content="50次精度测试" Command="{Binding PrecisionTestCommand}"
-                            Width="120" Height="30" Margin="8,0,0,0"/>
-                </WrapPanel>
-                <!-- 二维坐标 -> 6轴坐标(手动输入) -->
-                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                    <TextBlock Text="二维坐标→6轴(手动输入):" FontWeight="Bold" FontSize="13"
-                               VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <TextBlock Text="X2:" VerticalAlignment="Center" FontSize="13"/>
-                    <TextBox Text="{Binding InputX2, UpdateSourceTrigger=PropertyChanged}"
-                             Width="80" Height="26" Margin="2,0,6,0" VerticalContentAlignment="Center"/>
-                    <TextBlock Text="Y2:" VerticalAlignment="Center" FontSize="13"/>
-                    <TextBox Text="{Binding InputY2, UpdateSourceTrigger=PropertyChanged}"
-                             Width="80" Height="26" Margin="2,0,8,0" VerticalContentAlignment="Center"/>
-                    <Button Content="转换为6轴坐标" Command="{Binding Convert2DTo6AxisCommand}"
-                            Width="130" Height="30" FontSize="13"/>
-                    <ToggleButton Content="记录转换坐标" IsChecked="{Binding IsRecordingConvert}"
-                                  Width="120" Height="30" FontSize="13" Margin="8,0,0,0">
-                        <ToggleButton.ToolTip>
-                            <TextBlock Text="按下: 开始记录之后转换的坐标&#x0a;再次点击: 停止记录并保存为txt文件后清空"/>
-                        </ToggleButton.ToolTip>
-                    </ToggleButton>
-                </StackPanel>
-            </StackPanel>
-
-            <!-- 输出区(可选取复制) -->
-            <Border Grid.Row="2" BorderBrush="Gray" BorderThickness="1" Margin="0,8,0,0">
-                <TextBox Text="{Binding OutputText, Mode=OneWay}"
-                         IsReadOnly="True" TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                         FontFamily="Consolas" FontSize="13" Padding="6"
-                         Background="White" Foreground="Black"/>
-            </Border>
-        </Grid>
+        <!-- 输出区(可选取复制) -->
+        <Border Grid.Row="2" BorderBrush="Gray" BorderThickness="1" Margin="0,8,0,0">
+            <TextBox Text="{Binding OutputText, Mode=OneWay}"
+                     IsReadOnly="True" TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                     FontFamily="Consolas" FontSize="13" Padding="6"
+                     Background="White" Foreground="Black"/>
+        </Border>
     </Grid>
 </UserControl>

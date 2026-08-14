@@ -53,15 +53,26 @@
                                         CommandParameter="{Binding}" Width="60" Height="28"/>
                             </StackPanel>
 
-                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                <TextBlock Text="触发配置:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,6,0"/>
-                                <CheckBox Content="记录读取坐标" IsChecked="{Binding RecordRead}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                <CheckBox Content="记录转换坐标" IsChecked="{Binding RecordConvert}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                <CheckBox Content="读取机器人位置" IsChecked="{Binding ReadRobot}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                <CheckBox Content="转换为6轴坐标" IsChecked="{Binding Convert6Axis}" VerticalAlignment="Center"/>
+                            <StackPanel Margin="0,8,0,0">
+                                <WrapPanel>
+                                    <TextBlock Text="触发配置:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,6,0"/>
+                                    <CheckBox Content="记录读取坐标" IsChecked="{Binding RecordRead}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <CheckBox Content="记录转换坐标" IsChecked="{Binding RecordConvert}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <CheckBox Content="记录二维坐标" IsChecked="{Binding Record2D}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <CheckBox Content="读取机器人位置" IsChecked="{Binding ReadRobot}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <CheckBox Content="转为二维坐标" IsChecked="{Binding Convert2D}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <CheckBox Content="转换为6轴坐标" IsChecked="{Binding Convert6Axis}" VerticalAlignment="Center"/>
+                                </WrapPanel>
+                                <WrapPanel Margin="0,6,0,0">
+                                    <TextBlock Text="连续执行:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,6,0"/>
+                                    <CheckBox Content="启用" IsChecked="{Binding Continuous}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <TextBlock Text="执行次数:" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding ExecCountText, UpdateSourceTrigger=PropertyChanged}"
+                                             Width="60" Height="26" Margin="4,0,0,0" VerticalContentAlignment="Center"/>
+                                </WrapPanel>
                             </StackPanel>
 
-                            <TextBlock Text="触发时: 依次执行两个保存记录坐标按钮 → 读取机器人位置 → 转换为6轴坐标，并通过接收设备依次回传: 机器人坐标:数据、转换后的6轴坐标：数据。"
+                            <TextBlock Text="触发时: 依次执行保存记录坐标按钮 → 读取机器人位置 → 转为二维坐标 → 转换为6轴坐标，并通过接收设备依次回传: 机器人坐标:数据、二维坐标:X：数据,Y：数据、转换后的6轴坐标:数据；开启连续执行后按设定次数重复执行。"
                                        FontSize="11" Foreground="Gray" TextWrapping="Wrap" Margin="0,6,0,0"/>
                         </StackPanel>
                     </Border>
