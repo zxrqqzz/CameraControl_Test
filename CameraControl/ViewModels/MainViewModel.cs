@@ -38,18 +38,6 @@ namespace CameraControl.ViewModels
         public ICommand ShowMainViewCommand { get; }
         public ICommand ShowCalibrationViewCommand { get; }
 
-        // 机器人
-        public string RobotIp { get; set; } = "192.168.1.11";
-        public ICommand ConnectRobotCommand { get; }
-        public ICommand ReadRobotCommand { get; }
-
-        private string _robotOutputText = "";
-        public string RobotOutputText
-        {
-            get => _robotOutputText;
-            set { _robotOutputText = value; OnPropertyChanged(); }
-        }
-
         // 标定界面
         public CalibrationViewModel CalibrationVM { get; }
 
@@ -80,8 +68,6 @@ namespace CameraControl.ViewModels
 
             ShowMainViewCommand = new RelayCommand(ShowMainView);
             ShowCalibrationViewCommand = new RelayCommand(ShowCalibrationView);
-            ConnectRobotCommand = new RelayCommand(ConnectRobot);
-            ReadRobotCommand = new RelayCommand(ReadRobot);
 
             CalibrationVM = new CalibrationViewModel(App.Robot);
 
@@ -105,64 +91,6 @@ namespace CameraControl.ViewModels
             IsCalibrationView = true;
             OnPropertyChanged(nameof(IsMainView));
             OnPropertyChanged(nameof(IsCalibrationView));
-        }
-
-        private bool _isConnecting;
-
-        /// <summary>连接机器人(后台线程执行，避免阻塞UI)</summary>
-        private async void ConnectRobot()
-        {
-            if (_isConnecting) return;
-            _isConnecting = true;
-            try
-            {
-                RobotOutputText = $"正在连接机器人 {RobotIp} ...";
-                await App.Robot.ConnectAsync(RobotIp);
-                RobotOutputText = $"机器人 {RobotIp} 连接成功。";
-            }
-            catch (Exception e)
-            {
-                string msg = "连接机器人失败: " + e.Message;
-                App.LogVM.AddLog(msg);
-                RobotOutputText = msg;
-            }
-            finally
-            {
-                _isConnecting = false;
-            }
-        }
-
-        /// <summary>读取机器人六个轴的位置信息(未连接时自动连接，均后台执行并带超时)</summary>
-        private async void ReadRobot()
-        {
-            try
-            {
-                if (!App.Robot.IsConnected)
-                {
-                    App.LogVM.AddLog("未连接机器人，自动尝试连接 ...");
-                    await App.Robot.ConnectAsync(RobotIp);
-                }
-
-                var m = await App.Robot.ReadPositionAsync();
-                var sb = new StringBuilder();
-                sb.AppendLine($"读取时间: {m.ReadTime:yyyy-MM-dd HH:mm:ss.fff}");
-                sb.AppendLine("六轴关节角(度): ");
-                sb.AppendLine($"  S={m.Ax1:F3}  L={m.Ax2:F3}  U={m.Ax3:F3}");
-                sb.AppendLine($"  R={m.Ax4:F3}  B={m.Ax5:F3}  T={m.Ax6:F3}");
-                sb.AppendLine("六轴直角坐标(mm/度): ");
-                sb.AppendLine($"  X={m.X:F3}  Y={m.Y:F3}  Z={m.Z:F3}");
-                sb.AppendLine($"  Rx={m.Cartesian[3]:F3}  Ry={m.Cartesian[4]:F3}  Rz={m.Cartesian[5]:F3}");
-                sb.AppendLine("脉冲: ");
-                sb.AppendLine($"  {string.Join("  ", Array.ConvertAll(m.Pulse, v => v.ToString("F0")))}");
-                RobotOutputText = sb.ToString();
-                App.LogVM.AddLog("读取机器人位置成功");
-            }
-            catch (Exception e)
-            {
-                string msg = "读取机器人位置失败: " + e.Message;
-                App.LogVM.AddLog(msg);
-                RobotOutputText = msg;
-            }
         }
 
         /// <summary>

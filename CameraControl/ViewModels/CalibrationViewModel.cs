@@ -119,7 +119,56 @@ namespace CameraControl.ViewModels
             set { _inputY2 = value; OnPropertyChanged(); }
         }
 
+        /// <summary>机器人实际位置显示文本</summary>
+        private string _robotOutputText = "";
+        public string RobotOutputText
+        {
+            get => _robotOutputText;
+            set { _robotOutputText = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>已读取的坐标记录(实际坐标)</summary>
+        public ObservableCollection<CoordinateRecord> ReadRecords { get; } = new ObservableCollection<CoordinateRecord>();
+
+        /// <summary>转换后的坐标记录</summary>
+        public ObservableCollection<CoordinateRecord> ConvertRecords { get; } = new ObservableCollection<CoordinateRecord>();
+
+        private bool _isRecordingRead;
+        /// <summary>记录读取坐标开关(按下开始记录，再次点击停止并保存)</summary>
+        public bool IsRecordingRead
+        {
+            get => _isRecordingRead;
+            set
+            {
+                if (_isRecordingRead == value) return;
+                _isRecordingRead = value;
+                OnPropertyChanged();
+                if (value)
+                    LogVM.AddLog("已开启记录: 之后读取的位置坐标将被存储，再次点击\"记录读取坐标\"保存。");
+                else
+                    SaveReadData();
+            }
+        }
+
+        private bool _isRecordingConvert;
+        /// <summary>记录转换坐标开关(按下开始记录，再次点击停止并保存)</summary>
+        public bool IsRecordingConvert
+        {
+            get => _isRecordingConvert;
+            set
+            {
+                if (_isRecordingConvert == value) return;
+                _isRecordingConvert = value;
+                OnPropertyChanged();
+                if (value)
+                    LogVM.AddLog("已开启记录: 之后转换的坐标将被存储，再次点击\"记录转换坐标\"保存。");
+                else
+                    SaveConvertData();
+            }
+        }
+
         public ICommand ConnectCommand { get; }
+        public ICommand ReadRobotCommand { get; }
         public ICommand ReadPointCommand { get; }
         public ICommand CalculateCommand => _calculateCommand;
         public ICommand ConvertCurrentCommand => _convertCurrentCommand;
@@ -136,6 +185,7 @@ namespace CameraControl.ViewModels
                 Points.Add(new CalibrationPoint { Name = "点" + i });
 
             ConnectCommand = new RelayCommand(Connect);
+            ReadRobotCommand = new RelayCommand(ReadRobot);
             ReadPointCommand = new RelayCommand<string>(ReadPoint);
             _calculateCommand = new RelayCommand(Calculate, CanCalculate);
             _convertCurrentCommand = new RelayCommand(ConvertCurrent, () => _frame.IsValid);
@@ -143,6 +193,62 @@ namespace CameraControl.ViewModels
             ClearCommand = new RelayCommand(Clear);
             ExportCommand = new RelayCommand(Export);
             ImportCommand = new RelayCommand(Import);
+        }
+
+        /// <summary>
+        /// 读取机器人六个轴的位置信息(实际坐标)，并记录到读取坐标列表。
+        /// </summary>
+        private async void ReadRobot()
+        {
+            try
+            {
+                if (!_robot.IsConnected)
+                {
+                    AppendOutput("未连接机器人，自动尝试连接 ...");
+                    LogVM.AddLog("未连接机器人，自动尝试连接 ...");
+                    await _robot.ConnectAsync(RobotIp);
+                }
+
+                var m = await _robot.ReadPositionAsync();
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"读取时间: {m.ReadTime:yyyy-MM-dd HH:mm:ss.fff}");
+                sb.AppendLine("六轴关节角(度): ");
+                sb.AppendLine($"  S={m.Ax1:F3}  L={m.Ax2:F3}  U={m.Ax3:F3}");
+                sb.AppendLine($"  R={m.Ax4:F3}  B={m.Ax5:F3}  T={m.Ax6:F3}");
+                sb.AppendLine("六轴直角坐标(mm/度): ");
+                sb.AppendLine($"  X={m.X:F3}  Y={m.Y:F3}  Z={m.Z:F3}");
+                sb.AppendLine($"  Rx={m.Cartesian[3]:F3}  Ry={m.Cartesian[4]:F3}  Rz={m.Cartesian[5]:F3}");
+                sb.AppendLine("脉冲: ");
+                sb.AppendLine($"  {string.Join("  ", Array.ConvertAll(m.Pulse, v => v.ToString("F0")))}");
+                RobotOutputText = sb.ToString();
+
+                // 记录读取坐标(实际坐标)
+                var rec = new CoordinateRecord
+                {
+                    X = m.X,
+                    Y = m.Y,
+                    Z = m.Z,
+                    Rx = m.Cartesian[3],
+                    Ry = m.Cartesian[4],
+                    Rz = m.Cartesian[5]
+                };
+                Array.Copy(m.Angle, rec.Angle, rec.Angle.Length);
+                if (_frame.IsValid)
+                {
+                    var p = _frame.Project(m.X, m.Y, m.Z);
+                    rec.X2 = Round2D(p.X2);
+                    rec.Y2 = Round2D(p.Y2);
+                }
+                if (IsRecordingRead) ReadRecords.Add(rec);
+                LogVM.AddLog("读取机器人位置成功并记录");
+            }
+            catch (Exception e)
+            {
+                string msg = "读取机器人位置失败: " + e.Message;
+                LogVM.AddLog(msg);
+                RobotOutputText = msg;
+            }
         }
 
         private bool _isConnecting;
@@ -294,6 +400,25 @@ namespace CameraControl.ViewModels
                 double x2 = Round2D(p.X2);
                 double y2 = Round2D(p.Y2);
 
+                // 自动填入二维坐标手动输入处
+                InputX2 = x2.ToString("F3");
+                InputY2 = y2.ToString("F3");
+
+                // 记录读取坐标(实际坐标)
+                var rec = new CoordinateRecord
+                {
+                    X2 = x2,
+                    Y2 = y2,
+                    X = m.X,
+                    Y = m.Y,
+                    Z = m.Z,
+                    Rx = m.Cartesian[3],
+                    Ry = m.Cartesian[4],
+                    Rz = m.Cartesian[5]
+                };
+                Array.Copy(m.Angle, rec.Angle, rec.Angle.Length);
+                if (IsRecordingRead) ReadRecords.Add(rec);
+
                 var sb = new StringBuilder();
                 sb.AppendLine($"[{DateTime.Now:HH:mm:ss.fff}] 当前六轴信息 -> 二维坐标");
                 sb.AppendLine($"  六轴关节角(°): S={m.Ax1:F3} L={m.Ax2:F3} U={m.Ax3:F3} " +
@@ -301,10 +426,12 @@ namespace CameraControl.ViewModels
                 sb.AppendLine($"  六轴直角坐标(mm): X={m.X:F3} Y={m.Y:F3} Z={m.Z:F3} " +
                               $"Rx={m.Cartesian[3]:F3} Ry={m.Cartesian[4]:F3} Rz={m.Cartesian[5]:F3}");
                 sb.AppendLine($"  => 二维坐标: X2={x2:F3}, Y2={y2:F3} (精度 {CurrentSettings.PrecisionMm:0.###}mm)");
+                sb.AppendLine("  已自动填入手动输入框，可直接调整后点击\"转换为6轴坐标\"。");
+                if (IsRecordingRead) sb.AppendLine("  已记录到读取坐标列表。");
                 string warn = CheckRange(p.X2, p.Y2);
                 if (warn.Length > 0) sb.AppendLine("  " + warn);
                 OutputText = sb.ToString();
-                LogVM.AddLog("转换当前位姿成功");
+                LogVM.AddLog("转换当前位姿成功" + (IsRecordingRead ? "并记录" : ""));
             }
             catch (Exception e)
             {
@@ -358,6 +485,21 @@ namespace CameraControl.ViewModels
                 var m = await _robot.ConvertCartesianToJointAsync(
                     x, y, z, cur.Cartesian[3], cur.Cartesian[4], cur.Cartesian[5]);
 
+                // 记录转换坐标
+                var rec = new CoordinateRecord
+                {
+                    X2 = x2,
+                    Y2 = y2,
+                    X = x,
+                    Y = y,
+                    Z = z,
+                    Rx = cur.Cartesian[3],
+                    Ry = cur.Cartesian[4],
+                    Rz = cur.Cartesian[5]
+                };
+                Array.Copy(m.Angle, rec.Angle, rec.Angle.Length);
+                if (IsRecordingConvert) ConvertRecords.Add(rec);
+
                 var sb = new StringBuilder();
                 sb.AppendLine($"[{DateTime.Now:HH:mm:ss.fff}] 二维坐标 -> 6轴坐标");
                 sb.AppendLine($"  输入二维坐标: X2={x2:F3},  Y2={y2:F3} (精度 {CurrentSettings.PrecisionMm:0.###}mm)");
@@ -388,6 +530,58 @@ namespace CameraControl.ViewModels
             OutputText = "";
             _calculateCommand.RaiseCanExecuteChanged();
             _convertCurrentCommand.RaiseCanExecuteChanged();
+        }
+
+        /// <summary>
+        /// 保存已读取的坐标(实际坐标)为 txt 文件
+        /// </summary>
+        private void SaveReadData() => SaveRecords(ReadRecords, "读取坐标");
+
+        /// <summary>
+        /// 保存转换后的坐标为 txt 文件
+        /// </summary>
+        private void SaveConvertData() => SaveRecords(ConvertRecords, "转换坐标");
+
+        /// <summary>
+        /// 将记录保存为 txt 文件(带时间戳)，保存成功后清空记录。
+        /// 数据包含六轴关节角与直角坐标(示教器可直接读取和运行)。
+        /// </summary>
+        private void SaveRecords(ObservableCollection<CoordinateRecord> records, string label)
+        {
+            if (records.Count == 0)
+            {
+                string msg = $"没有可保存的{label}数据。";
+                OutputText = msg;
+                LogVM.AddLog(msg);
+                return;
+            }
+
+            var dlg = new OpenFolderDialog { Title = $"选择保存{label}的文件夹" };
+            if (dlg.ShowDialog() != true) return;
+
+            try
+            {
+                string baseName = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string path = Path.Combine(dlg.FolderName, $"{label}_{baseName}.txt");
+
+                var sb = new StringBuilder();
+                sb.AppendLine(CoordinateRecord.FileHeader);
+                foreach (var r in records)
+                    sb.AppendLine(r.ToFileLine());
+                File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+
+                string msg = $"{label}已保存({records.Count}条): {path}";
+                OutputText = msg;
+                LogVM.AddLog(msg);
+
+                records.Clear();
+            }
+            catch (Exception e)
+            {
+                string msg = $"保存{label}失败: {e.Message}";
+                OutputText = msg;
+                LogVM.AddLog(msg);
+            }
         }
 
         /// <summary>
