@@ -556,21 +556,24 @@ namespace CameraControl.ViewModels
                 return;
             }
 
-            var dlg = new OpenFolderDialog { Title = $"选择保存{label}的文件夹" };
+            var dlg = new SaveFileDialog
+            {
+                Title = $"保存{label}",
+                Filter = "文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*",
+                DefaultExt = ".txt",
+                FileName = $"{label}_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
+            };
             if (dlg.ShowDialog() != true) return;
 
             try
             {
-                string baseName = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                string path = Path.Combine(dlg.FolderName, $"{label}_{baseName}.txt");
-
                 var sb = new StringBuilder();
                 sb.AppendLine(CoordinateRecord.FileHeader);
                 foreach (var r in records)
                     sb.AppendLine(r.ToFileLine());
-                File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+                File.WriteAllText(dlg.FileName, sb.ToString(), new UTF8Encoding(false));
 
-                string msg = $"{label}已保存({records.Count}条): {path}";
+                string msg = $"{label}已保存({records.Count}条): {dlg.FileName}";
                 OutputText = msg;
                 LogVM.AddLog(msg);
 
