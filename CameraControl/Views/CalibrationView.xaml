@@ -158,6 +158,8 @@
                     <Button Content="读取当前位姿并转为2轴坐标"
                             Command="{Binding ConvertCurrentCommand}"
                             Width="200" Height="30"/>
+                    <Button Content="50次精度测试" Command="{Binding PrecisionTestCommand}"
+                            Width="120" Height="30" Margin="8,0,0,0"/>
                 </WrapPanel>
                 <!-- 二维坐标 -> 6轴坐标(手动输入) -->
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">

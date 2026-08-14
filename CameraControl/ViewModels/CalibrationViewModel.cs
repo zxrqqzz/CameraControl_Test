@@ -176,6 +176,7 @@ namespace CameraControl.ViewModels
         public ICommand CalculateCommand => _calculateCommand;
         public ICommand ConvertCurrentCommand => _convertCurrentCommand;
         public ICommand Convert2DTo6AxisCommand { get; }
+        public ICommand PrecisionTestCommand { get; }
         public ICommand ClearCommand { get; }
         public ICommand ExportCommand { get; }
         public ICommand ImportCommand { get; }
@@ -193,6 +194,7 @@ namespace CameraControl.ViewModels
             _calculateCommand = new RelayCommand(Calculate, CanCalculate);
             _convertCurrentCommand = new RelayCommand(ConvertCurrent, () => _frame.IsValid);
             Convert2DTo6AxisCommand = new RelayCommand(Convert2DTo6Axis);
+            PrecisionTestCommand = new RelayCommand(async () => await PrecisionTestAsync());
             ClearCommand = new RelayCommand(Clear);
             ExportCommand = new RelayCommand(Export);
             ImportCommand = new RelayCommand(Import);
@@ -297,7 +299,9 @@ namespace CameraControl.ViewModels
             InputX2 = x2.ToString("F3");
             InputY2 = y2.ToString("F3");
 
-            var (x, y, z) = _frame.InverseProject(x2, y2);
+            // 用全精度二维坐标反投影，避免取整误差被放大，
+            // 使"读取(6轴) -> 2D -> 反算3D -> 逆解6轴"与直接读取的坐标一致(误差≈0)
+            var (x, y, z) = _frame.InverseProject(p.X2, p.Y2);
 
             var m = await _robot.ConvertCartesianToJointAsync(
                 x, y, z, robot.Cartesian[3], robot.Cartesian[4], robot.Cartesian[5]);
@@ -589,6 +593,110 @@ namespace CameraControl.ViewModels
                 string msg = "坐标转换失败: " + e.Message;
                 AppendOutput(msg);
                 LogVM.AddLog(msg);
+            }
+        }
+
+        private bool _isTesting;
+
+        /// <summary>
+        /// 6轴->2D->6轴 精度测试：连续读取机器人位置50次，
+        /// 分别按"取整路径"与"全精度路径(优化)"反投影，并与直接读取的坐标比对误差；
+        /// 另用机器人逆解得到6轴关节角与直接读取的关节角比对。
+        /// </summary>
+        public async Task PrecisionTestAsync()
+        {
+            if (_isTesting) return;
+            if (!_frame.IsValid)
+            {
+                string msg = "尚未完成标定，无法进行精度测试。请先建立二维直角坐标系。";
+                OutputText = msg;
+                LogVM.AddLog(msg);
+                return;
+            }
+
+            _isTesting = true;
+            const int N = 50;
+            try
+            {
+                if (!_robot.IsConnected)
+                {
+                    LogVM.AddLog("未连接机器人，自动尝试连接 ...");
+                    await _robot.ConnectAsync(RobotIp);
+                }
+
+                double minDistQ = double.MaxValue, maxDistQ = 0, sumDistQ = 0;
+                double minDistF = double.MaxValue, maxDistF = 0, sumDistF = 0;
+                double sumDxQ = 0, sumDyQ = 0, sumDzQ = 0;
+                double sumDxF = 0, sumDyF = 0, sumDzF = 0;
+                double[] maxJoint = new double[6];
+                double[] sumJoint = new double[6];
+
+                for (int i = 0; i < N; i++)
+                {
+                    var m = await _robot.ReadPositionAsync();
+                    var p = _frame.Project(m.X, m.Y, m.Z);
+
+                    // 链路A: 按设定精度取整后反投影(原路径)
+                    double x2q = Round2D(p.X2), y2q = Round2D(p.Y2);
+                    var (xq, yq, zq) = _frame.InverseProject(x2q, y2q);
+                    double dq = Math.Sqrt((xq - m.X) * (xq - m.X) + (yq - m.Y) * (yq - m.Y) + (zq - m.Z) * (zq - m.Z));
+                    minDistQ = Math.Min(minDistQ, dq); maxDistQ = Math.Max(maxDistQ, dq); sumDistQ += dq;
+                    sumDxQ += Math.Abs(xq - m.X); sumDyQ += Math.Abs(yq - m.Y); sumDzQ += Math.Abs(zq - m.Z);
+
+                    // 链路B: 全精度反投影(优化，不取整)
+                    var (xf, yf, zf) = _frame.InverseProject(p.X2, p.Y2);
+                    double df = Math.Sqrt((xf - m.X) * (xf - m.X) + (yf - m.Y) * (yf - m.Y) + (zf - m.Z) * (zf - m.Z));
+                    minDistF = Math.Min(minDistF, df); maxDistF = Math.Max(maxDistF, df); sumDistF += df;
+                    sumDxF += Math.Abs(xf - m.X); sumDyF += Math.Abs(yf - m.Y); sumDzF += Math.Abs(zf - m.Z);
+
+                    // 链路C: 用全精度反投影结果做机器人逆解，与直接读取的关节角比对
+                    try
+                    {
+                        var conv = await _robot.ConvertCartesianToJointAsync(
+                            xf, yf, zf, m.Cartesian[3], m.Cartesian[4], m.Cartesian[5]);
+                        for (int a = 0; a < 6; a++)
+                        {
+                            double d = Math.Abs(conv.Angle[a] - m.Angle[a]);
+                            maxJoint[a] = Math.Max(maxJoint[a], d);
+                            sumJoint[a] += d;
+                        }
+                    }
+                    catch { }
+                }
+
+                string[] names = { "S", "L", "U", "R", "B", "T" };
+                var sb = new StringBuilder();
+                sb.AppendLine($"========== 6轴->2D->6轴 精度测试({N}次) ==========");
+                sb.AppendLine($"测试时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                sb.AppendLine($"坐标精度: {CurrentSettings.PrecisionMm:0.###} mm");
+                sb.AppendLine();
+                sb.AppendLine("[A] 按精度取整路径(原):");
+                sb.AppendLine($"  3D距离误差(mm): 最小={minDistQ:F6}  最大={maxDistQ:F6}  平均={sumDistQ / N:F6}");
+                sb.AppendLine($"  各轴平均绝对误差(mm): X={sumDxQ / N:F6}  Y={sumDyQ / N:F6}  Z={sumDzQ / N:F6}");
+                sb.AppendLine();
+                sb.AppendLine("[B] 全精度路径(优化,不取整):");
+                sb.AppendLine($"  3D距离误差(mm): 最小={minDistF:F6}  最大={maxDistF:F6}  平均={sumDistF / N:F6}");
+                sb.AppendLine($"  各轴平均绝对误差(mm): X={sumDxF / N:F6}  Y={sumDyF / N:F6}  Z={sumDzF / N:F6}");
+                sb.AppendLine();
+                sb.AppendLine("[C] 6轴关节角误差(全精度反投影->机器人逆解 vs 直接读取, 度):");
+                for (int a = 0; a < 6; a++)
+                    sb.AppendLine($"  {names[a]}: 平均={sumJoint[a] / N:F6}  最大={maxJoint[a]:F6}");
+                sb.AppendLine();
+                sb.AppendLine("说明: 建议机器人在静止位置测试。链路B应为0(投影/反投影无损)；");
+                sb.AppendLine("      链路A反映按精度取整引入的量化误差(±精度/2)；");
+                sb.AppendLine("      链路C反映机器人自身逆解/正解模型一致性。");
+                OutputText = sb.ToString();
+                LogVM.AddLog($"精度测试完成({N}次): 链路B全精度3D平均误差 {sumDistF / N:F6}mm");
+            }
+            catch (Exception e)
+            {
+                string msg = "精度测试失败: " + e.Message;
+                OutputText = msg;
+                LogVM.AddLog(msg);
+            }
+            finally
+            {
+                _isTesting = false;
             }
         }
 
