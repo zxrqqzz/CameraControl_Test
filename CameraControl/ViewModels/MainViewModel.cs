@@ -69,7 +69,7 @@ namespace CameraControl.ViewModels
             ShowMainViewCommand = new RelayCommand(ShowMainView);
             ShowCalibrationViewCommand = new RelayCommand(ShowCalibrationView);
 
-            CalibrationVM = new CalibrationViewModel(App.Robot);
+            CalibrationVM = App.Calibration;
 
             DeviceCamera();
 

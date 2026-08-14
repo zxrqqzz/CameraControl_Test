@@ -202,14 +202,7 @@ namespace CameraControl.ViewModels
         {
             try
             {
-                if (!_robot.IsConnected)
-                {
-                    AppendOutput("未连接机器人，自动尝试连接 ...");
-                    LogVM.AddLog("未连接机器人，自动尝试连接 ...");
-                    await _robot.ConnectAsync(RobotIp);
-                }
-
-                var m = await _robot.ReadPositionAsync();
+                var m = await ReadRobotAndRecordAsync();
 
                 var sb = new StringBuilder();
                 sb.AppendLine($"读取时间: {m.ReadTime:yyyy-MM-dd HH:mm:ss.fff}");
@@ -222,25 +215,6 @@ namespace CameraControl.ViewModels
                 sb.AppendLine("脉冲: ");
                 sb.AppendLine($"  {string.Join("  ", Array.ConvertAll(m.Pulse, v => v.ToString("F0")))}");
                 RobotOutputText = sb.ToString();
-
-                // 记录读取坐标(实际坐标)
-                var rec = new CoordinateRecord
-                {
-                    X = m.X,
-                    Y = m.Y,
-                    Z = m.Z,
-                    Rx = m.Cartesian[3],
-                    Ry = m.Cartesian[4],
-                    Rz = m.Cartesian[5]
-                };
-                Array.Copy(m.Angle, rec.Angle, rec.Angle.Length);
-                if (_frame.IsValid)
-                {
-                    var p = _frame.Project(m.X, m.Y, m.Z);
-                    rec.X2 = Round2D(p.X2);
-                    rec.Y2 = Round2D(p.Y2);
-                }
-                if (IsRecordingRead) ReadRecords.Add(rec);
                 LogVM.AddLog("读取机器人位置成功并记录");
             }
             catch (Exception e)
@@ -249,6 +223,76 @@ namespace CameraControl.ViewModels
                 LogVM.AddLog(msg);
                 RobotOutputText = msg;
             }
+        }
+
+        /// <summary>
+        /// 读取机器人位置，若开启"记录读取坐标"则加入读取坐标列表。
+        /// 供"读取机器人位置"按钮与全局触发共用。
+        /// </summary>
+        public async Task<RobotModel> ReadRobotAndRecordAsync()
+        {
+            if (!_robot.IsConnected)
+            {
+                LogVM.AddLog("未连接机器人，自动尝试连接 ...");
+                await _robot.ConnectAsync(RobotIp);
+            }
+
+            var m = await _robot.ReadPositionAsync();
+
+            var rec = new CoordinateRecord
+            {
+                X = m.X,
+                Y = m.Y,
+                Z = m.Z,
+                Rx = m.Cartesian[3],
+                Ry = m.Cartesian[4],
+                Rz = m.Cartesian[5]
+            };
+            Array.Copy(m.Angle, rec.Angle, rec.Angle.Length);
+            if (_frame.IsValid)
+            {
+                var p = _frame.Project(m.X, m.Y, m.Z);
+                rec.X2 = Round2D(p.X2);
+                rec.Y2 = Round2D(p.Y2);
+            }
+            if (IsRecordingRead) ReadRecords.Add(rec);
+            return m;
+        }
+
+        /// <summary>
+        /// 将机器人位置投影为二维坐标填入输入框，再反算标定平面上的直角坐标并转换为6轴关节角。
+        /// 若开启"记录转换坐标"则加入转换坐标列表。供全局触发使用。
+        /// </summary>
+        public async Task<RobotModel> ConvertCurrentTo6AxisAsync(RobotModel robot)
+        {
+            if (!_frame.IsValid)
+                throw new InvalidOperationException("尚未完成标定，无法进行坐标转换。请先在标定界面建立二维直角坐标系。");
+
+            var p = _frame.Project(robot.X, robot.Y, robot.Z);
+            double x2 = Round2D(p.X2);
+            double y2 = Round2D(p.Y2);
+            InputX2 = x2.ToString("F3");
+            InputY2 = y2.ToString("F3");
+
+            var (x, y, z) = _frame.InverseProject(x2, y2);
+
+            var m = await _robot.ConvertCartesianToJointAsync(
+                x, y, z, robot.Cartesian[3], robot.Cartesian[4], robot.Cartesian[5]);
+
+            var rec = new CoordinateRecord
+            {
+                X2 = x2,
+                Y2 = y2,
+                X = x,
+                Y = y,
+                Z = z,
+                Rx = robot.Cartesian[3],
+                Ry = robot.Cartesian[4],
+                Rz = robot.Cartesian[5]
+            };
+            Array.Copy(m.Angle, rec.Angle, rec.Angle.Length);
+            if (IsRecordingConvert) ConvertRecords.Add(rec);
+            return m;
         }
 
         private bool _isConnecting;
@@ -543,7 +587,8 @@ namespace CameraControl.ViewModels
         private void SaveConvertData() => SaveRecords(ConvertRecords, "转换坐标");
 
         /// <summary>
-        /// 将记录保存为 txt 文件(带时间戳)，保存成功后清空记录。
+        /// 将记录保存为 txt 文件(带时间戳)。
+        /// 无论保存成功、失败还是取消，松开按钮后都会清空记录。
         /// 数据包含六轴关节角与直角坐标(示教器可直接读取和运行)。
         /// </summary>
         private void SaveRecords(ObservableCollection<CoordinateRecord> records, string label)
@@ -563,28 +608,37 @@ namespace CameraControl.ViewModels
                 DefaultExt = ".txt",
                 FileName = $"{label}_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
             };
-            if (dlg.ShowDialog() != true) return;
 
-            try
+            if (dlg.ShowDialog() == true)
             {
-                var sb = new StringBuilder();
-                sb.AppendLine(CoordinateRecord.FileHeader);
-                foreach (var r in records)
-                    sb.AppendLine(r.ToFileLine());
-                File.WriteAllText(dlg.FileName, sb.ToString(), new UTF8Encoding(false));
+                try
+                {
+                    var sb = new StringBuilder();
+                    sb.AppendLine(CoordinateRecord.FileHeader);
+                    foreach (var r in records)
+                        sb.AppendLine(r.ToFileLine());
+                    File.WriteAllText(dlg.FileName, sb.ToString(), new UTF8Encoding(false));
 
-                string msg = $"{label}已保存({records.Count}条): {dlg.FileName}";
+                    string msg = $"{label}已保存({records.Count}条): {dlg.FileName}";
+                    OutputText = msg;
+                    LogVM.AddLog(msg);
+                }
+                catch (Exception e)
+                {
+                    string msg = $"保存{label}失败: {e.Message}";
+                    OutputText = msg;
+                    LogVM.AddLog(msg);
+                }
+            }
+            else
+            {
+                string msg = $"取消保存{label}，记录已清空。";
                 OutputText = msg;
                 LogVM.AddLog(msg);
+            }
 
-                records.Clear();
-            }
-            catch (Exception e)
-            {
-                string msg = $"保存{label}失败: {e.Message}";
-                OutputText = msg;
-                LogVM.AddLog(msg);
-            }
+            // 松开按钮即清空记录(无论保存成功、失败还是取消)
+            records.Clear();
         }
 
         /// <summary>

@@ -39,89 +39,102 @@
     </Window.Resources>
 
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="150"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!-- 侧边栏 -->
-        <Border Grid.Column="0" Background="#FF2D2D30">
-            <StackPanel Margin="0,12,0,0">
-                <TextBlock Text="导航" Foreground="White" HorizontalAlignment="Center"
-                           FontSize="17" FontWeight="Bold" Margin="0,0,0,18"/>
-                <RadioButton Content="主界面" GroupName="Nav" Style="{StaticResource NavItemStyle}"
-                             IsChecked="{Binding IsMainView, Mode=OneWay}" Command="{Binding ShowMainViewCommand}"/>
-                <RadioButton Content="标定界面" GroupName="Nav" Style="{StaticResource NavItemStyle}"
-                             IsChecked="{Binding IsCalibrationView, Mode=OneWay}" Command="{Binding ShowCalibrationViewCommand}"/>
-            </StackPanel>
-        </Border>
+        <!-- 顶部菜单栏(固定,不随侧边栏切换) -->
+        <Menu Grid.Row="0" Background="#FF3F3F46" Foreground="White" Padding="0">
+            <MenuItem Header="通讯管理" Click="OnCommunicationClick"/>
+            <MenuItem Header="全局触发" Click="OnGlobalTriggerClick"/>
+        </Menu>
 
-        <!-- 主界面 -->
-        <Grid Grid.Column="1" Visibility="{Binding IsMainView, Converter={StaticResource BoolToVis}}">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-            <StackPanel Orientation="Horizontal" Margin="2">
-                <TextBlock Text="相机:" VerticalAlignment="Center" FontSize="16" Margin="5,0,2,0"/>
-                <Button Content="连接" FontSize="16"
-                        Margin="5" Height="40" Width="70"
-                        Command="{Binding ConnectCameraCommand}"/>
-                <Button Content="断开" FontSize="16"
-                        Margin="5" Height="40" Width="70"
-                        Command="{Binding DisconnectCameraCommand}"/>
-                <TextBlock Text="{Binding CameraStatusText}" VerticalAlignment="Center"
-                           FontSize="14" Margin="5,0,15,0" Foreground="Gray"/>
-                <Button Content="单次采集" FontSize="16"
-                        Margin="5"
-                        Height="40" Width="100"
-                        Command="{Binding SingleCaptureCommand}"/>
-                <Button Content="连续采集" FontSize="16"
-                        Margin="5" Height="40" Width="100"
-                        Command="{Binding ContinuousCaptureCommand}"/>
-            </StackPanel>
+            <!-- 侧边栏 -->
+            <Border Grid.Column="0" Background="#FF2D2D30">
+                <StackPanel Margin="0,12,0,0">
+                    <TextBlock Text="导航" Foreground="White" HorizontalAlignment="Center"
+                               FontSize="17" FontWeight="Bold" Margin="0,0,0,18"/>
+                    <RadioButton Content="主界面" GroupName="Nav" Style="{StaticResource NavItemStyle}"
+                                 IsChecked="{Binding IsMainView, Mode=OneWay}" Command="{Binding ShowMainViewCommand}"/>
+                    <RadioButton Content="标定界面" GroupName="Nav" Style="{StaticResource NavItemStyle}"
+                                 IsChecked="{Binding IsCalibrationView, Mode=OneWay}" Command="{Binding ShowCalibrationViewCommand}"/>
+                </StackPanel>
+            </Border>
 
-            <!-- 图像显示区域 -->
-            <Grid Grid.Row="1" Margin="5">
-                <Border BorderBrush="Gray" BorderThickness="1">
-                    <Image Source="{Binding CurrentImage}" Stretch="Uniform"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Border>
-            </Grid>
-
-            <!-- Row 2 – 日志区域 -->
-            <Grid Grid.Row="2" Margin="2">
+            <!-- 主界面 -->
+            <Grid Grid.Column="1" Visibility="{Binding IsMainView, Converter={StaticResource BoolToVis}}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                
-                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,2">
-                    <TextBlock Text="日志输出:" VerticalAlignment="Center" FontWeight="Bold" FontSize="16"/>
-                    <Button Content="清空日志" Command="{Binding LogVM.ClearLogCommand}" 
-                            Width="80" Height="28" Margin="10,2,10,2"/>
+
+                <StackPanel Orientation="Horizontal" Margin="2">
+                    <TextBlock Text="相机:" VerticalAlignment="Center" FontSize="16" Margin="5,0,2,0"/>
+                    <Button Content="连接" FontSize="16"
+                            Margin="5" Height="40" Width="70"
+                            Command="{Binding ConnectCameraCommand}"/>
+                    <Button Content="断开" FontSize="16"
+                            Margin="5" Height="40" Width="70"
+                            Command="{Binding DisconnectCameraCommand}"/>
+                    <TextBlock Text="{Binding CameraStatusText}" VerticalAlignment="Center"
+                               FontSize="14" Margin="5,0,15,0" Foreground="Gray"/>
+                    <Button Content="单次采集" FontSize="16"
+                            Margin="5"
+                            Height="40" Width="100"
+                            Command="{Binding SingleCaptureCommand}"/>
+                    <Button Content="连续采集" FontSize="16"
+                            Margin="5" Height="40" Width="100"
+                            Command="{Binding ContinuousCaptureCommand}"/>
                 </StackPanel>
 
-                <ListBox Grid.Row="2" 
-                         ItemsSource="{Binding LogVM.Logs}" 
-                         Height="100" 
-                         Margin="5"
-                         Background="White" 
-                         Foreground="Black"
-                         FontFamily="Consolas" FontSize="12">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="12"/>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Grid>
-        </Grid>
+                <!-- 图像显示区域 -->
+                <Grid Grid.Row="1" Margin="5">
+                    <Border BorderBrush="Gray" BorderThickness="1">
+                        <Image Source="{Binding CurrentImage}" Stretch="Uniform"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                </Grid>
 
-        <!-- 标定界面 -->
-        <views:CalibrationView Grid.Column="1" DataContext="{Binding CalibrationVM}"
-                               Visibility="{Binding DataContext.IsCalibrationView, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
+                <!-- Row 2 – 日志区域 -->
+                <Grid Grid.Row="2" Margin="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,2">
+                        <TextBlock Text="日志输出:" VerticalAlignment="Center" FontWeight="Bold" FontSize="16"/>
+                        <Button Content="清空日志" Command="{Binding LogVM.ClearLogCommand}"
+                                Width="80" Height="28" Margin="10,2,10,2"/>
+                    </StackPanel>
+
+                    <ListBox Grid.Row="2"
+                             ItemsSource="{Binding LogVM.Logs}"
+                             Height="100"
+                             Margin="5"
+                             Background="White"
+                             Foreground="Black"
+                             FontFamily="Consolas" FontSize="12">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="12"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Grid>
+
+            <!-- 标定界面 -->
+            <views:CalibrationView Grid.Column="1" DataContext="{Binding CalibrationVM}"
+                                   Visibility="{Binding DataContext.IsCalibrationView, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
+        </Grid>
     </Grid>
 </Window>
