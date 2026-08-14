@@ -25,5 +25,12 @@ namespace CameraControl
             DataContext = _vm;
 
         }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            _vm?.Dispose();
+            App.Robot.Dispose();
+        }
     }
 }

@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows;
 using System.Windows.Input;
 
 namespace CameraControl.ViewModels
@@ -22,18 +23,33 @@ namespace CameraControl.ViewModels
             }
         }
 
-        // 添加日志（可加时间戳）
+        // 添加日志（可加时间戳，支持后台线程调用）
         public void AddLog(string message)
         {
             string timestamped = $"{DateTime.Now:HH:mm:ss.fff} - {message}";
-            Logs.Add(timestamped);
-            // 可选：自动滚动到最新（在视图中处理）
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.BeginInvoke(new Action(() => Logs.Add(timestamped)));
+            }
+            else
+            {
+                Logs.Add(timestamped);
+            }
         }
 
         // 清空日志
         public void ClearLogs()
         {
-            Logs.Clear();
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.BeginInvoke(new Action(Logs.Clear));
+            }
+            else
+            {
+                Logs.Clear();
+            }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
