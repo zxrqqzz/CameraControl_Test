@@ -3,6 +3,7 @@ using CameraControl.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -19,6 +20,7 @@ namespace CameraControl.Services
     {
         private readonly CommunicationService _communication;
         private readonly CalibrationViewModel _calibration;
+        private bool _restoring;
 
         /// <summary>触发列表</summary>
         public ObservableCollection<StringTrigger> Triggers { get; } = new ObservableCollection<StringTrigger>();
@@ -34,18 +36,58 @@ namespace CameraControl.Services
         public void AddTrigger(string triggerText, TriggerMatchMode matchMode)
         {
             var t = new StringTrigger { TriggerText = triggerText, MatchMode = matchMode };
+            t.PropertyChanged += OnTriggerPropertyChanged;
             Triggers.Add(t);
             Reindex();
             App.LogVM.AddLog($"已添加全局触发: [{t.Index}] \"{t.TriggerText}\" ({t.MatchModeText})");
+            TrySave();
         }
 
         /// <summary>移除触发</summary>
         public void RemoveTrigger(StringTrigger trigger)
         {
             if (!Triggers.Contains(trigger)) return;
+            trigger.PropertyChanged -= OnTriggerPropertyChanged;
             Triggers.Remove(trigger);
             Reindex();
             App.LogVM.AddLog($"已删除全局触发: \"{trigger.TriggerText}\"");
+            TrySave();
+        }
+
+        /// <summary>启动时从保存的设置恢复触发列表</summary>
+        public void RestoreFromSettings(IEnumerable<TriggerSettings> triggers)
+        {
+            _restoring = true;
+            try
+            {
+                foreach (var ts in triggers)
+                {
+                    if (string.IsNullOrWhiteSpace(ts.TriggerText)) continue;
+                    var t = new StringTrigger
+                    {
+                        TriggerText = ts.TriggerText,
+                        MatchMode = ts.MatchMode,
+                        Enabled = ts.Enabled,
+                        RecordRead = ts.RecordRead,
+                        RecordConvert = ts.RecordConvert,
+                        ReadRobot = ts.ReadRobot,
+                        Convert6Axis = ts.Convert6Axis
+                    };
+                    t.PropertyChanged += OnTriggerPropertyChanged;
+                    Triggers.Add(t);
+                }
+                Reindex();
+            }
+            finally { _restoring = false; }
+        }
+
+        /// <summary>触发配置变化时自动保存</summary>
+        private void OnTriggerPropertyChanged(object? sender, PropertyChangedEventArgs e) => TrySave();
+
+        /// <summary>自动保存当前设置</summary>
+        private void TrySave()
+        {
+            if (!_restoring) App.Settings?.SaveAll();
         }
 
         /// <summary>手动测试触发(仅执行并记录结果，不通过网络发送)</summary>
@@ -128,7 +170,7 @@ namespace CameraControl.Services
         /// 执行触发配置:
         /// 1. 执行两个"保存记录坐标"按钮(记录读取坐标、记录转换坐标)
         /// 2. 依次执行"读取机器人位置"、"转换为6轴坐标"
-        /// 返回格式: 机器人坐标:数据、转换后的6轴坐标：数据
+        /// 返回两条统一格式的数据: 机器人坐标:...、转换后的6轴坐标:...
         /// </summary>
         private async Task<List<string>> ExecuteSequenceAsync(StringTrigger trigger)
         {
@@ -148,11 +190,11 @@ namespace CameraControl.Services
                     converted = await _calibration.ConvertCurrentTo6AxisAsync(robot);
             }
 
-            // 3. 依次回传数据
+            // 3. 依次回传数据(两条回复统一使用相同的完整坐标格式)
             if (trigger.ReadRobot && robot != null)
-                responses.Add("机器人坐标:" + FormatRobot(robot));
+                responses.Add("机器人坐标:" + FormatPosition(robot));
             if (trigger.Convert6Axis && converted != null)
-                responses.Add("转换后的6轴坐标：" + FormatConverted(converted));
+                responses.Add("转换后的6轴坐标:" + FormatPosition(converted));
 
             return responses;
         }
@@ -163,16 +205,12 @@ namespace CameraControl.Services
             catch (Exception e) { App.LogVM.AddLog("回传数据失败: " + e.Message); }
         }
 
-        private static string FormatRobot(RobotModel m)
+        /// <summary>统一的完整坐标格式: 直角坐标 + 六轴关节角(示教器可直接使用)</summary>
+        private static string FormatPosition(RobotModel m)
         {
             return $"X={m.X:F3},Y={m.Y:F3},Z={m.Z:F3}," +
-                   $"Rx={m.Cartesian[3]:F3},Ry={m.Cartesian[4]:F3},Rz={m.Cartesian[5]:F3}";
-        }
-
-        private static string FormatConverted(RobotModel m)
-        {
-            return $"S={m.Ax1:F3},L={m.Ax2:F3},U={m.Ax3:F3}," +
-                   $"R={m.Ax4:F3},B={m.Ax5:F3},T={m.Ax6:F3}";
+                   $"Rx={m.Cartesian[3]:F3},Ry={m.Cartesian[4]:F3},Rz={m.Cartesian[5]:F3}," +
+                   $"S={m.Ax1:F3},L={m.Ax2:F3},U={m.Ax3:F3},R={m.Ax4:F3},B={m.Ax5:F3},T={m.Ax6:F3}";
         }
     }
 }

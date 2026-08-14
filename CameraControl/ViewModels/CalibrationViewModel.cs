@@ -95,6 +95,9 @@ namespace CameraControl.ViewModels
 
         private CalibrationFrame _frame = new CalibrationFrame();
 
+        /// <summary>恢复设置时抑制自动保存，避免启动时写回</summary>
+        private bool _suppressSave;
+
         /// <summary>输出文本框内容(可选择复制)</summary>
         private string _outputText = "";
         public string OutputText
@@ -193,6 +196,21 @@ namespace CameraControl.ViewModels
             ClearCommand = new RelayCommand(Clear);
             ExportCommand = new RelayCommand(Export);
             ImportCommand = new RelayCommand(Import);
+
+            // 取值范围/精度、机器人IP等设置变化时自动保存
+            PropertyChanged += (_, e) =>
+            {
+                if (_suppressSave) return;
+                switch (e.PropertyName)
+                {
+                    case nameof(RobotIp):
+                    case nameof(BoardWidthText):
+                    case nameof(BoardHeightText):
+                    case nameof(PrecisionText):
+                        App.Settings?.SaveAll();
+                        break;
+                }
+            };
         }
 
         /// <summary>
@@ -214,6 +232,8 @@ namespace CameraControl.ViewModels
                 sb.AppendLine($"  Rx={m.Cartesian[3]:F3}  Ry={m.Cartesian[4]:F3}  Rz={m.Cartesian[5]:F3}");
                 sb.AppendLine("脉冲: ");
                 sb.AppendLine($"  {string.Join("  ", Array.ConvertAll(m.Pulse, v => v.ToString("F0")))}");
+                if (_frame.IsValid)
+                    sb.AppendLine($"二维坐标: X2={InputX2}  Y2={InputY2} (已自动填入输入框)");
                 RobotOutputText = sb.ToString();
                 LogVM.AddLog("读取机器人位置成功并记录");
             }
@@ -249,11 +269,14 @@ namespace CameraControl.ViewModels
                 Rz = m.Cartesian[5]
             };
             Array.Copy(m.Angle, rec.Angle, rec.Angle.Length);
+            Array.Copy(m.Pulse, rec.Pulse, rec.Pulse.Length);
             if (_frame.IsValid)
             {
                 var p = _frame.Project(m.X, m.Y, m.Z);
                 rec.X2 = Round2D(p.X2);
                 rec.Y2 = Round2D(p.Y2);
+                InputX2 = rec.X2.ToString("F3");
+                InputY2 = rec.Y2.ToString("F3");
             }
             if (IsRecordingRead) ReadRecords.Add(rec);
             return m;
@@ -291,6 +314,7 @@ namespace CameraControl.ViewModels
                 Rz = robot.Cartesian[5]
             };
             Array.Copy(m.Angle, rec.Angle, rec.Angle.Length);
+            Array.Copy(robot.Pulse, rec.Pulse, rec.Pulse.Length);
             if (IsRecordingConvert) ConvertRecords.Add(rec);
             return m;
         }
@@ -348,6 +372,7 @@ namespace CameraControl.ViewModels
                 LogVM.AddLog(line);
 
                 _calculateCommand.RaiseCanExecuteChanged();
+                App.Settings?.SaveAll();
             }
             catch (Exception e)
             {
@@ -411,21 +436,22 @@ namespace CameraControl.ViewModels
             sb.AppendLine("========== 二维直角坐标系标定完成 ==========");
             sb.AppendLine($"原点(点1):     {p0.X:F3}, {p0.Y:F3}, {p0.Z:F3}");
             sb.AppendLine($"X轴方向(点1→点2): ({ex0:F3}, {ey0:F3}, {ez0:F3})");
-            sb.AppendLine($"  比例: {alen:F3} mm / 单位");
+            sb.AppendLine($"  X轴标定距离: {alen:F3} mm");
             sb.AppendLine($"Y轴方向(点1→点3垂直分量): ({fx:F3}, {fy:F3}, {fz:F3})");
-            sb.AppendLine($"  比例: {vlen:F3} mm / 单位");
+            sb.AppendLine($"  Y轴标定距离: {vlen:F3} mm");
 
             var s = CurrentSettings;
             sb.AppendLine($"取值范围: X2∈[0, {s.BoardWidthMm:F1}] mm, Y2∈[0, {s.BoardHeightMm:F1}] mm");
             sb.AppendLine($"坐标精度: {s.PrecisionMm:0.###} mm (坐标输出按该精度取整)");
             if (alen > s.BoardWidthMm + 1e-6)
-                sb.AppendLine($"警告: X轴比例 {alen:F1}mm 超出设定的板宽 {s.BoardWidthMm:F1}mm，请调整板宽或重新采集X轴点。");
+                sb.AppendLine($"警告: X轴标定距离 {alen:F1}mm 超出设定的板宽 {s.BoardWidthMm:F1}mm，请调整板宽或重新采集X轴点。");
             if (vlen > s.BoardHeightMm + 1e-6)
-                sb.AppendLine($"警告: Y轴比例 {vlen:F1}mm 超出设定的板高 {s.BoardHeightMm:F1}mm，请调整板高或重新采集Y轴点。");
+                sb.AppendLine($"警告: Y轴标定距离 {vlen:F1}mm 超出设定的板高 {s.BoardHeightMm:F1}mm，请调整板高或重新采集Y轴点。");
             sb.AppendLine("现在可以点击\"转换当前位姿\"将六轴信息转为2轴坐标，或点击\"导出坐标系\"保存本次标定结果。");
             OutputText = sb.ToString();
 
             _convertCurrentCommand.RaiseCanExecuteChanged();
+            App.Settings?.SaveAll();
         }
 
         private async void ConvertCurrent()
@@ -461,6 +487,7 @@ namespace CameraControl.ViewModels
                     Rz = m.Cartesian[5]
                 };
                 Array.Copy(m.Angle, rec.Angle, rec.Angle.Length);
+                Array.Copy(m.Pulse, rec.Pulse, rec.Pulse.Length);
                 if (IsRecordingRead) ReadRecords.Add(rec);
 
                 var sb = new StringBuilder();
@@ -542,6 +569,7 @@ namespace CameraControl.ViewModels
                     Rz = cur.Cartesian[5]
                 };
                 Array.Copy(m.Angle, rec.Angle, rec.Angle.Length);
+                Array.Copy(cur.Pulse, rec.Pulse, rec.Pulse.Length);
                 if (IsRecordingConvert) ConvertRecords.Add(rec);
 
                 var sb = new StringBuilder();
@@ -552,6 +580,7 @@ namespace CameraControl.ViewModels
                 sb.AppendLine($"  姿态取当前机器人姿态: Rx={cur.Cartesian[3]:F3}  Ry={cur.Cartesian[4]:F3}  Rz={cur.Cartesian[5]:F3}");
                 sb.AppendLine($"  6轴关节角(°): S={m.Ax1:F3}  L={m.Ax2:F3}  U={m.Ax3:F3}  " +
                               $"R={m.Ax4:F3}  B={m.Ax5:F3}  T={m.Ax6:F3}");
+                sb.AppendLine($"  可直接在示教器运行: X={x:F3} Y={y:F3} Z={z:F3} Rx={cur.Cartesian[3]:F3} Ry={cur.Cartesian[4]:F3} Rz={cur.Cartesian[5]:F3}  |  S={m.Ax1:F3} L={m.Ax2:F3} U={m.Ax3:F3} R={m.Ax4:F3} B={m.Ax5:F3} T={m.Ax6:F3}");
                 OutputText = sb.ToString();
                 LogVM.AddLog("二维坐标转换为6轴坐标成功");
             }
@@ -574,6 +603,7 @@ namespace CameraControl.ViewModels
             OutputText = "";
             _calculateCommand.RaiseCanExecuteChanged();
             _convertCurrentCommand.RaiseCanExecuteChanged();
+            App.Settings?.SaveAll();
         }
 
         /// <summary>
@@ -642,6 +672,86 @@ namespace CameraControl.ViewModels
         }
 
         /// <summary>
+        /// 构建标定导出数据(取值范围/精度、标定点、二维坐标系)。
+        /// 供"导出坐标系"与自动保存共用。
+        /// </summary>
+        public CalibrationExportData BuildExportData()
+        {
+            var s = CurrentSettings;
+            return new CalibrationExportData
+            {
+                Version = 1,
+                Settings = new CalibrationSettingsData
+                {
+                    BoardWidthMm = s.BoardWidthMm,
+                    BoardHeightMm = s.BoardHeightMm,
+                    PrecisionMm = s.PrecisionMm
+                },
+                Points = Points.Select(p => new CalibrationPointData
+                {
+                    Name = p.Name,
+                    X = p.X,
+                    Y = p.Y,
+                    Z = p.Z
+                }).ToList(),
+                Frame = _frame.ToData()
+            };
+        }
+
+        /// <summary>
+        /// 从自动保存的设置恢复二维坐标系(机器人IP、取值范围/精度、标定点、坐标系)。
+        /// 启动时调用，下次打开可直接使用，无需重复采集标定点。
+        /// </summary>
+        public void RestoreSettings(string robotIp, CalibrationExportData? data)
+        {
+            _suppressSave = true;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(robotIp))
+                    RobotIp = robotIp;
+
+                if (data == null) return;
+
+                if (data.Settings != null)
+                {
+                    BoardWidthText = data.Settings.BoardWidthMm.ToString("0.###");
+                    BoardHeightText = data.Settings.BoardHeightMm.ToString("0.###");
+                    PrecisionText = data.Settings.PrecisionMm.ToString("0.###");
+                }
+
+                for (int i = 0; i < Points.Count; i++)
+                {
+                    var p = Points[i];
+                    if (data.Points != null && i < data.Points.Count)
+                    {
+                        var pd = data.Points[i];
+                        if (!string.IsNullOrEmpty(pd.Name)) p.Name = pd.Name;
+                        p.X = pd.X;
+                        p.Y = pd.Y;
+                        p.Z = pd.Z;
+                        p.IsRead = true;
+                    }
+                    else
+                    {
+                        p.IsRead = false;
+                    }
+                }
+
+                if (data.Frame != null)
+                    _frame.FromData(data.Frame);
+                else
+                    _frame = new CalibrationFrame();
+
+                _calculateCommand.RaiseCanExecuteChanged();
+                _convertCurrentCommand.RaiseCanExecuteChanged();
+            }
+            finally
+            {
+                _suppressSave = false;
+            }
+        }
+
+        /// <summary>
         /// 将已建立的二维坐标系导出为 JSON 文件，下次可直接导入使用，无需重复采集标定点。
         /// </summary>
         private async void Export()
@@ -665,25 +775,7 @@ namespace CameraControl.ViewModels
 
             try
             {
-                var s = CurrentSettings;
-                var data = new CalibrationExportData
-                {
-                    Version = 1,
-                    Settings = new CalibrationSettingsData
-                    {
-                        BoardWidthMm = s.BoardWidthMm,
-                        BoardHeightMm = s.BoardHeightMm,
-                        PrecisionMm = s.PrecisionMm
-                    },
-                    Points = Points.Select(p => new CalibrationPointData
-                    {
-                        Name = p.Name,
-                        X = p.X,
-                        Y = p.Y,
-                        Z = p.Z
-                    }).ToList(),
-                    Frame = _frame.ToData()
-                };
+                var data = BuildExportData();
 
                 string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
                 await File.WriteAllTextAsync(dlg.FileName, json, new UTF8Encoding(false));
@@ -754,11 +846,12 @@ namespace CameraControl.ViewModels
                 var sb = new StringBuilder();
                 sb.AppendLine($"坐标系导入成功: {dlg.FileName}");
                 sb.AppendLine($"原点: {_frame.OriginX:F3}, {_frame.OriginY:F3}, {_frame.OriginZ:F3}");
-                sb.AppendLine($"X轴方向: ({_frame.XDirX:F3}, {_frame.XDirY:F3}, {_frame.XDirZ:F3})  比例: {_frame.XScale:F3} mm/单位");
-                sb.AppendLine($"Y轴方向: ({_frame.YDirX:F3}, {_frame.YDirY:F3}, {_frame.YDirZ:F3})  比例: {_frame.YScale:F3} mm/单位");
+                sb.AppendLine($"X轴方向: ({_frame.XDirX:F3}, {_frame.XDirY:F3}, {_frame.XDirZ:F3})  标定距离: {_frame.XScale:F3} mm");
+                sb.AppendLine($"Y轴方向: ({_frame.YDirX:F3}, {_frame.YDirY:F3}, {_frame.YDirZ:F3})  标定距离: {_frame.YScale:F3} mm");
                 sb.AppendLine($"取值范围: X2∈[0, {s.BoardWidthMm:F1}] mm, Y2∈[0, {s.BoardHeightMm:F1}] mm  精度: {s.PrecisionMm:0.###} mm");
                 OutputText = sb.ToString();
                 LogVM.AddLog("坐标系导入成功，无需重复采集标定点。");
+                App.Settings?.SaveAll();
             }
             catch (Exception e)
             {

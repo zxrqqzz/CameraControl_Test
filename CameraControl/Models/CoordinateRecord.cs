@@ -6,17 +6,13 @@ namespace CameraControl.Models
     /// <summary>
     /// 坐标记录(实际读取坐标 / 转换坐标)
     /// 用于将两类坐标分别保存为 txt 文件，便于数据整理与比对。
+    /// 保存顺序: 可直接被机器人与示教器读取运行的直角坐标、六轴关节角优先，
+    /// 其后为二维(相机)坐标，脉冲仅作监视/参考。
     /// </summary>
     public class CoordinateRecord
     {
         /// <summary>记录时间</summary>
         public DateTime Time { get; set; } = DateTime.Now;
-
-        /// <summary>二维坐标 X2(mm)</summary>
-        public double X2 { get; set; }
-
-        /// <summary>二维坐标 Y2(mm)</summary>
-        public double Y2 { get; set; }
 
         /// <summary>直角坐标 X(mm)</summary>
         public double X { get; set; }
@@ -36,26 +32,40 @@ namespace CameraControl.Models
         /// <summary>直角坐标 Rz(°)</summary>
         public double Rz { get; set; }
 
-        /// <summary>六轴关节角 S L U R B T(单位: 度)</summary>
+        /// <summary>六轴关节角 S L U R B T(单位: 度)，示教器可直接运行</summary>
         public double[] Angle { get; set; } = new double[8];
 
-        /// <summary>列表显示文本</summary>
-        public string Display => $"{Time:HH:mm:ss}  X2={X2:F3}  Y2={Y2:F3}  直角: {X:F2},{Y:F2},{Z:F2}";
+        /// <summary>二维坐标 X2(mm)</summary>
+        public double X2 { get; set; }
+
+        /// <summary>二维坐标 Y2(mm)</summary>
+        public double Y2 { get; set; }
+
+        /// <summary>脉冲 S L U R B T(仅监视/参考，不用于直接运行)</summary>
+        public double[] Pulse { get; set; } = new double[8];
+
+        /// <summary>列表显示文本(优先显示可运行坐标)</summary>
+        public string Display => $"{Time:HH:mm:ss}  直角: {X:F2},{Y:F2},{Z:F2}  " +
+                                 $"6轴: {Angle[0]:F2}/{Angle[1]:F2}/{Angle[2]:F2}/{Angle[3]:F2}/{Angle[4]:F2}/{Angle[5]:F2}";
 
         /// <summary>保存到 txt 的一行数据(Tab分隔)</summary>
         public string ToFileLine()
         {
             var sb = new StringBuilder();
             sb.Append($"{Time:yyyy-MM-dd HH:mm:ss.fff}\t");
-            sb.Append($"{X2:F3}\t{Y2:F3}\t");
             sb.Append($"{X:F3}\t{Y:F3}\t{Z:F3}\t");
             sb.Append($"{Rx:F3}\t{Ry:F3}\t{Rz:F3}\t");
-            sb.Append($"{Angle[0]:F3}\t{Angle[1]:F3}\t{Angle[2]:F3}\t{Angle[3]:F3}\t{Angle[4]:F3}\t{Angle[5]:F3}");
+            sb.Append($"{Angle[0]:F3}\t{Angle[1]:F3}\t{Angle[2]:F3}\t{Angle[3]:F3}\t{Angle[4]:F3}\t{Angle[5]:F3}\t");
+            sb.Append($"{X2:F3}\t{Y2:F3}\t");
+            sb.Append($"{Pulse[0]:F0}\t{Pulse[1]:F0}\t{Pulse[2]:F0}\t{Pulse[3]:F0}\t{Pulse[4]:F0}\t{Pulse[5]:F0}");
             return sb.ToString();
         }
 
         /// <summary>txt 表头</summary>
         public static string FileHeader =>
-            "时间\tX2(mm)\tY2(mm)\tX(mm)\tY(mm)\tZ(mm)\tRx(°)\tRy(°)\tRz(°)\tS(°)\tL(°)\tU(°)\tR(°)\tB(°)\tT(°)";
+            "时间\tX(mm)\tY(mm)\tZ(mm)\tRx(°)\tRy(°)\tRz(°)\t" +
+            "S(°)\tL(°)\tU(°)\tR(°)\tB(°)\tT(°)\t" +
+            "X2(mm)\tY2(mm)\t" +
+            "PulseS\tPulseL\tPulseU\tPulseR\tPulseB\tPulseT";
     }
 }

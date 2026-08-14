@@ -75,16 +75,17 @@ namespace CameraControl.Models
         /// <summary>Y轴单位方向向量</summary>
         public double YDirX, YDirY, YDirZ;
 
-        /// <summary>每个X单位对应的毫米数</summary>
+        /// <summary>X轴标定距离(mm，原点→X轴点，仅显示/兼容用)</summary>
         public double XScale;
 
-        /// <summary>每个Y单位对应的毫米数</summary>
+        /// <summary>Y轴标定距离(mm，原点→Y轴点，仅显示/兼容用)</summary>
         public double YScale;
 
         public bool IsValid;
 
         /// <summary>
-        /// 将三维直角坐标投影到标定的二维直角坐标系，得到二维坐标(X2, Y2)
+        /// 将三维直角坐标投影到标定的二维直角坐标系，得到二维坐标(X2, Y2)。
+        /// X2/Y2 为标定平面上的物理坐标(mm)，与界面"X2∈[0,板宽]mm"语义一致。
         /// </summary>
         public (double X2, double Y2) Project(double x, double y, double z)
         {
@@ -92,19 +93,20 @@ namespace CameraControl.Models
             double ty = y - OriginY;
             double tz = z - OriginZ;
 
-            double x2 = (tx * XDirX + ty * XDirY + tz * XDirZ) / XScale;
-            double y2 = (tx * YDirX + ty * YDirY + tz * YDirZ) / YScale;
+            double x2 = tx * XDirX + ty * XDirY + tz * XDirZ;
+            double y2 = tx * YDirX + ty * YDirY + tz * YDirZ;
             return (x2, y2);
         }
 
         /// <summary>
-        /// 将二维坐标(X2, Y2)反投影到标定平面，得到三维直角坐标(X, Y, Z)
+        /// 将二维坐标(X2, Y2)反投影到标定平面，得到三维直角坐标(X, Y, Z)。
+        /// X2/Y2 单位为 mm，取整误差不会被放大。
         /// </summary>
         public (double X, double Y, double Z) InverseProject(double x2, double y2)
         {
-            double x = OriginX + x2 * XScale * XDirX + y2 * YScale * YDirX;
-            double y = OriginY + x2 * XScale * XDirY + y2 * YScale * YDirY;
-            double z = OriginZ + x2 * XScale * XDirZ + y2 * YScale * YDirZ;
+            double x = OriginX + x2 * XDirX + y2 * YDirX;
+            double y = OriginY + x2 * XDirY + y2 * YDirY;
+            double z = OriginZ + x2 * XDirZ + y2 * YDirZ;
             return (x, y, z);
         }
 
@@ -192,9 +194,9 @@ namespace CameraControl.Models
         public double[] XDirection { get; set; } = new double[3];
         /// <summary>Y 轴单位方向向量 [X, Y, Z]</summary>
         public double[] YDirection { get; set; } = new double[3];
-        /// <summary>每个 X 单位对应的毫米数</summary>
+        /// <summary>X 轴标定距离(mm，仅显示/兼容用)</summary>
         public double XScale { get; set; }
-        /// <summary>每个 Y 单位对应的毫米数</summary>
+        /// <summary>Y 轴标定距离(mm，仅显示/兼容用)</summary>
         public double YScale { get; set; }
         /// <summary>坐标系是否有效</summary>
         public bool IsValid { get; set; }

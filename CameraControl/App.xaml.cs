@@ -26,10 +26,21 @@ namespace CameraControl
         // 全局触发服务
         public static GlobalTriggerService GlobalTrigger { get; }
 
+        // 应用设置自动保存/加载
+        public static AppSettingsService Settings { get; }
+
         static App()
         {
             Calibration = new CalibrationViewModel(Robot);
             GlobalTrigger = new GlobalTriggerService(Communication, Calibration);
+            Settings = new AppSettingsService();
+            Settings.LoadAll();
+        }
+
+        protected override void OnExit(ExitEventArgs e)
+        {
+            Settings?.SaveAll();
+            base.OnExit(e);
         }
     }
 
