@@ -36,12 +36,17 @@ namespace CameraControl.ViewModels
         public bool IsMainView { get; private set; } = true;
         public bool IsCalibrationView { get; private set; }
         public bool IsCalibrationToolsView { get; private set; }
+        public bool IsUserCoordView { get; private set; }
         public ICommand ShowMainViewCommand { get; }
         public ICommand ShowCalibrationViewCommand { get; }
         public ICommand ShowCalibrationToolsViewCommand { get; }
+        public ICommand ShowUserCoordViewCommand { get; }
 
         // 标定界面
         public CalibrationViewModel CalibrationVM { get; }
+
+        // 用户坐标系直接读取界面
+        public UserCoordinateViewModel UserCoordVM { get; }
 
         private string _cameraStatusText = "未连接";
         /// <summary>相机连接状态文本</summary>
@@ -71,8 +76,10 @@ namespace CameraControl.ViewModels
             ShowMainViewCommand = new RelayCommand(ShowMainView);
             ShowCalibrationViewCommand = new RelayCommand(ShowCalibrationView);
             ShowCalibrationToolsViewCommand = new RelayCommand(ShowCalibrationToolsView);
+            ShowUserCoordViewCommand = new RelayCommand(ShowUserCoordView);
 
             CalibrationVM = App.Calibration;
+            UserCoordVM = App.UserCoordinate;
 
             DeviceCamera();
 
@@ -84,9 +91,11 @@ namespace CameraControl.ViewModels
             IsMainView = true;
             IsCalibrationView = false;
             IsCalibrationToolsView = false;
+            IsUserCoordView = false;
             OnPropertyChanged(nameof(IsMainView));
             OnPropertyChanged(nameof(IsCalibrationView));
             OnPropertyChanged(nameof(IsCalibrationToolsView));
+            OnPropertyChanged(nameof(IsUserCoordView));
         }
 
         /// <summary>切换到标定界面</summary>
@@ -95,9 +104,11 @@ namespace CameraControl.ViewModels
             IsMainView = false;
             IsCalibrationView = true;
             IsCalibrationToolsView = false;
+            IsUserCoordView = false;
             OnPropertyChanged(nameof(IsMainView));
             OnPropertyChanged(nameof(IsCalibrationView));
             OnPropertyChanged(nameof(IsCalibrationToolsView));
+            OnPropertyChanged(nameof(IsUserCoordView));
         }
 
         /// <summary>切换到标定工具界面</summary>
@@ -106,9 +117,24 @@ namespace CameraControl.ViewModels
             IsMainView = false;
             IsCalibrationView = false;
             IsCalibrationToolsView = true;
+            IsUserCoordView = false;
             OnPropertyChanged(nameof(IsMainView));
             OnPropertyChanged(nameof(IsCalibrationView));
             OnPropertyChanged(nameof(IsCalibrationToolsView));
+            OnPropertyChanged(nameof(IsUserCoordView));
+        }
+
+        /// <summary>切换到用户坐标系直接读取界面</summary>
+        private void ShowUserCoordView()
+        {
+            IsMainView = false;
+            IsCalibrationView = false;
+            IsCalibrationToolsView = false;
+            IsUserCoordView = true;
+            OnPropertyChanged(nameof(IsMainView));
+            OnPropertyChanged(nameof(IsCalibrationView));
+            OnPropertyChanged(nameof(IsCalibrationToolsView));
+            OnPropertyChanged(nameof(IsUserCoordView));
         }
 
         /// <summary>

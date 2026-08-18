@@ -84,4 +84,24 @@ namespace CameraControl.Models
         /// <summary>输出文本(格式: X：数据，Y：数据)</summary>
         public string Display => $"X：{X:F3}，Y：{Y:F3}";
     }
+
+    /// <summary>
+    /// 用户坐标系读取记录(含绕用户Z轴的旋转角)
+    /// 输出格式: X：数据，Y：数据，Rz：数据°
+    /// Rz 为用户坐标系 Z 轴(垂直于用户坐标平面的法线轴)的旋转角度，用于视觉标定旋转轴。
+    /// </summary>
+    public class UserCoordinateRecord
+    {
+        /// <summary>用户坐标 X(mm)</summary>
+        public double X { get; set; }
+
+        /// <summary>用户坐标 Y(mm)</summary>
+        public double Y { get; set; }
+
+        /// <summary>绕用户Z轴的旋转角(°)</summary>
+        public double Rz { get; set; }
+
+        /// <summary>输出文本(格式: X：数据，Y：数据，Rz：数据°)</summary>
+        public string Display => $"X：{X:F3}，Y：{Y:F3}，Rz：{Rz:F3}°";
+    }
 }

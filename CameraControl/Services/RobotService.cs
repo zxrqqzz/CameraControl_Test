@@ -40,12 +40,13 @@ namespace CameraControl.Services
                 var controller = MotomanController.OpenConnection(ip, out status,
                     ReceiveTimeoutMs, SendRetries, false);
 
-                // 注意: YMConnect_CS 1.1.10 的 StatusInfo.IsOk() 判断方向有误(实现为 StatusCode != 0)，
+// 注意: YMConnect_CS 1.1.10 的 StatusInfo.IsOk() 判断方向有误(实现为 StatusCode != 0)，
                 // 必须以 StatusCode == 0 作为成功判据。
                 if (controller == null || status.StatusCode != 0)
                 {
                     try { controller?.CloseConnection(); } catch { /* 忽略关闭异常 */ }
-                    string msg = $"连接机器人失败: Code={status.StatusCode}, {status.Message}";
+                    string msg = $"连接机器人失败: Code={status.StatusCode}, {status.Message}。\r\n" +
+                                 "请检查: ①机器人IP是否正确; ②机器人YCP通讯服务/端口是否开启; ③电脑与机器人网络是否连通; ④防火墙是否拦截(建议放行安川相关端口)。";
                     App.LogVM.AddLog(msg);
                     throw new InvalidOperationException(msg);
                 }
@@ -81,6 +82,33 @@ namespace CameraControl.Services
         /// <summary>后台线程读取机器人位置，带超时保护，不阻塞UI</summary>
         public Task<RobotModel> ReadPositionAsync(ControlGroupId group = ControlGroupId.R1) =>
             RunWithTimeoutAsync(() => ReadPosition(group), "读取坐标", ReadTimeoutMs);
+
+        /// <summary>
+        /// 读取机器人位置信息(脉冲/六轴关节角/用户直角坐标系坐标)。
+        /// 直接使用示教器中已建立好的用户坐标系(UF)，读取到的 X/Y 即为二维坐标，
+        /// 无需再通过三点手动标定，减少中间环节与累积误差。
+        /// </summary>
+        /// <param name="userFrameNumber">用户坐标系编号(1~63)</param>
+        /// <param name="group">控制组</param>
+        public RobotModel ReadPositionInUserFrame(byte userFrameNumber, ControlGroupId group = ControlGroupId.R1)
+        {
+            lock (_sync)
+            {
+                EnsureConnected();
+                if (userFrameNumber < 1 || userFrameNumber > 63)
+                    throw new ArgumentOutOfRangeException(nameof(userFrameNumber), "用户坐标系编号应为1~63");
+
+                var model = new RobotModel { ReadTime = DateTime.Now };
+                ReadAxis(group, CoordinateType.Pulse, model.Pulse, "脉冲");
+                ReadAxis(group, CoordinateType.Angle, model.Angle, "关节角度");
+                ReadAxis(group, CoordinateType.UserCoordinate, userFrameNumber, 0, model.Cartesian, "用户坐标系");
+                return model;
+            }
+        }
+
+        /// <summary>后台线程读取用户坐标系位置，带超时保护，不阻塞UI</summary>
+        public Task<RobotModel> ReadPositionInUserFrameAsync(byte userFrameNumber, ControlGroupId group = ControlGroupId.R1) =>
+            RunWithTimeoutAsync(() => ReadPositionInUserFrame(userFrameNumber, group), "读取用户坐标", ReadTimeoutMs);
 
         /// <summary>
         /// 将直角坐标(X,Y,Z,Rx,Ry,Rz)转换为六轴关节角(度)。
@@ -149,15 +177,22 @@ namespace CameraControl.Services
         }
 
         /// <summary>
-        /// 按指定坐标系读取轴数据到数组
+        /// 按指定坐标系读取轴数据到数组(默认索引0)
         /// </summary>
-        private void ReadAxis(ControlGroupId group, CoordinateType coord, double[] target, string label)
+        private void ReadAxis(ControlGroupId group, CoordinateType coord, double[] target, string label) =>
+            ReadAxis(group, coord, 0, 0, target, label);
+
+        /// <summary>
+        /// 按指定坐标系读取轴数据到数组
+        /// 用户坐标系(UserCoordinate)时 index=用户坐标系编号(UF1~UF63)，specifier=工具号。
+        /// </summary>
+        private void ReadAxis(ControlGroupId group, CoordinateType coord, byte index, byte specifier, double[] target, string label)
         {
             try
             {
                 StatusInfo status;
                 PositionData pos;
-                status = _controller!.ControlGroup.ReadPositionData(group, coord, 0, 0, out pos);
+                status = _controller!.ControlGroup.ReadPositionData(group, coord, index, specifier, out pos);
                 if (status.StatusCode != 0)
                 {
                     App.LogVM.AddLog($"读取{label}坐标失败: Code={status.StatusCode}, {status.Message}");

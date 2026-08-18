@@ -67,6 +67,8 @@
                                  IsChecked="{Binding IsCalibrationView, Mode=OneWay}" Command="{Binding ShowCalibrationViewCommand}"/>
                     <RadioButton Content="标定工具" GroupName="Nav" Style="{StaticResource NavItemStyle}"
                                  IsChecked="{Binding IsCalibrationToolsView, Mode=OneWay}" Command="{Binding ShowCalibrationToolsViewCommand}"/>
+                    <RadioButton Content="用户坐标直接读取" GroupName="Nav" Style="{StaticResource NavItemStyle}"
+                                 IsChecked="{Binding IsUserCoordView, Mode=OneWay}" Command="{Binding ShowUserCoordViewCommand}"/>
                 </StackPanel>
             </Border>
 
@@ -141,6 +143,10 @@
             <!-- 标定工具界面 -->
             <views:CalibrationToolsView Grid.Column="1" DataContext="{Binding CalibrationVM}"
                                         Visibility="{Binding DataContext.IsCalibrationToolsView, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
+
+            <!-- 用户坐标直接读取界面 -->
+            <views:UserCoordinateView Grid.Column="1" DataContext="{Binding UserCoordVM}"
+                                      Visibility="{Binding DataContext.IsUserCoordView, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
         </Grid>
     </Grid>
 </Window>

@@ -61,6 +61,7 @@ namespace CameraControl.Services
             var settings = new AppSettings
             {
                 RobotIp = App.Calibration.RobotIp,
+                UserFrameNumber = App.UserCoordinate.UserFrameNumber,
                 Calibration = App.Calibration.BuildExportData(),
                 Devices = App.Communication.Devices.Select(d => new DeviceSettings
                 {
@@ -94,6 +95,7 @@ namespace CameraControl.Services
             App.Communication.RestoreFromSettings(s.Devices);
             App.GlobalTrigger.RestoreFromSettings(s.Triggers);
             App.Calibration.RestoreSettings(s.RobotIp, s.Calibration);
+            App.UserCoordinate.RestoreSettings(s.UserFrameNumber);
         }
     }
 }

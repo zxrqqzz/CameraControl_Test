@@ -67,6 +67,9 @@ namespace CameraControl.ViewModels
             PrecisionMm = ParseSetting(PrecisionText, 0.1, 0.0001, 100)
         };
 
+        /// <summary>当前取值范围/精度设置(供其他模块复用)</summary>
+        public CalibrationSettings Settings => CurrentSettings;
+
         private static double ParseSetting(string text, double def, double min, double max)
         {
             if (double.TryParse(text, out double v) && v >= min && v <= max) return v;

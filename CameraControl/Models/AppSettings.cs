@@ -17,6 +17,9 @@ namespace CameraControl.Models
         /// <summary>机器人IP</summary>
         public string RobotIp { get; set; } = "192.168.1.11";
 
+        /// <summary>用户坐标系编号(UF1~UF63)</summary>
+        public int UserFrameNumber { get; set; } = 1;
+
         /// <summary>二维坐标系标定数据</summary>
         public CalibrationExportData Calibration { get; set; } = new CalibrationExportData();
     }
