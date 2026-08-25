@@ -4,6 +4,84 @@
              xmlns:local="clr-namespace:CameraControl"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <ResourceDictionary>
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <!-- SaaS Minimalist Modern Design Tokens                          -->
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+
+            <!-- 深色区域 (侧边栏/顶栏) -->
+            <SolidColorBrush x:Key="DarkSurfaceBrush" Color="#1E293B"/>
+            <SolidColorBrush x:Key="DarkSurfaceHoverBrush" Color="#334155"/>
+            <SolidColorBrush x:Key="AccentBrush" Color="#475569"/>
+            <SolidColorBrush x:Key="AccentHoverBrush" Color="#5A6D82"/>
+
+            <!-- 浅色区域 (内容区) -->
+            <SolidColorBrush x:Key="BackgroundBrush" Color="#F8FAFC"/>
+            <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="MutedBrush" Color="#F1F5F9"/>
+
+            <!-- 文字 -->
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#0F172A"/>
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#64748B"/>
+            <SolidColorBrush x:Key="TextOnAccentBrush" Color="#FFFFFF"/>
+
+            <!-- 边框 -->
+            <SolidColorBrush x:Key="BorderBrush" Color="#E2E8F0"/>
+
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <!-- 控件样式 (仅Setter，无ControlTemplate)                        -->
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+
+            <!-- 按钮：统一石板灰蓝色 -->
+            <Style x:Key="PrimaryButton" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Padding" Value="14,7"/>
+            </Style>
+
+            <Style x:Key="SecondaryButton" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Padding" Value="14,7"/>
+            </Style>
+
+            <!-- 切换按钮：统一石板灰蓝色 -->
+            <Style x:Key="ToggleButtonStyle" TargetType="ToggleButton">
+                <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Padding" Value="14,7"/>
+            </Style>
+
+            <!-- 输入框 -->
+            <Style x:Key="InputBox" TargetType="TextBox">
+                <Setter Property="Background" Value="{StaticResource CardBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Padding" Value="8,6"/>
+            </Style>
+
+            <!-- 列表框 -->
+            <Style x:Key="ListBoxStyle" TargetType="ListBox">
+                <Setter Property="Background" Value="{StaticResource CardBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+            </Style>
+
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

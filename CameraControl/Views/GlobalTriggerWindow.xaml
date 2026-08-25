@@ -6,74 +6,111 @@
         mc:Ignorable="d"
         Title="全局触发" Height="560" Width="860"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
-        FontSize="13">
-    <Grid Margin="10">
+        FontSize="13"
+        Background="{StaticResource BackgroundBrush}">
+    <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- 添加触发 -->
-        <Border Grid.Row="0" BorderBrush="Gray" BorderThickness="1" Padding="8" Margin="0,0,0,8">
+        <Border Grid.Row="0" Background="{StaticResource CardBrush}" 
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" 
+                Padding="12" Margin="0,0,0,12">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="触发字符:" VerticalAlignment="Center"/>
+                <TextBlock Text="触发字符:" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
                 <TextBox Text="{Binding NewTriggerText, UpdateSourceTrigger=PropertyChanged}"
-                         Width="160" Height="28" Margin="4,0,12,0" VerticalContentAlignment="Center"/>
-                <TextBlock Text="匹配模式:" VerticalAlignment="Center"/>
+                         Style="{StaticResource InputBox}"
+                         Width="170" Height="30" Margin="6,0,14,0"
+                         VerticalContentAlignment="Center"/>
+                <TextBlock Text="匹配模式:" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
                 <ComboBox ItemsSource="{Binding MatchModes}" DisplayMemberPath="Display" SelectedValuePath="Value"
                           SelectedValue="{Binding NewMatchMode}"
-                          Width="120" Height="28" Margin="4,0,12,0" VerticalContentAlignment="Center"/>
-                <Button Content="添加触发" Command="{Binding AddTriggerCommand}" Width="90" Height="30"/>
+                          Width="130" Height="30" Margin="6,0,14,0"
+                          VerticalContentAlignment="Center"/>
+                <Button Content="添加触发" Command="{Binding AddTriggerCommand}" Width="100" Height="34"
+                        Style="{StaticResource PrimaryButton}"/>
             </StackPanel>
         </Border>
 
         <!-- 触发列表 -->
-        <ListBox Grid.Row="1" ItemsSource="{Binding Triggers}" Background="White">
+        <ListBox Grid.Row="1" ItemsSource="{Binding Triggers}"
+                 Style="{StaticResource ListBoxStyle}">
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <Border BorderBrush="LightGray" BorderThickness="1" Padding="10" Margin="0,0,0,8" CornerRadius="3">
+                    <Border Background="{StaticResource MutedBrush}" 
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" 
+                            Padding="14" Margin="0,0,0,10">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="序号:" VerticalAlignment="Center" FontWeight="Bold"/>
-                                <TextBlock Text="{Binding Index}" VerticalAlignment="Center" Width="32" FontWeight="Bold"/>
-                                <TextBlock Text="触发字符:" VerticalAlignment="Center" FontWeight="Bold"/>
+                                <TextBlock Text="序号:" VerticalAlignment="Center" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding Index}" VerticalAlignment="Center" Width="36" 
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="触发字符:" VerticalAlignment="Center" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
                                 <TextBox Text="{Binding TriggerText, UpdateSourceTrigger=PropertyChanged}"
-                                         Width="140" Height="26" Margin="4,0,12,0" VerticalContentAlignment="Center"/>
-                                <TextBlock Text="匹配模式:" VerticalAlignment="Center" FontWeight="Bold"/>
+                                         Style="{StaticResource InputBox}"
+                                         Width="150" Height="28" Margin="6,0,14,0"
+                                         VerticalContentAlignment="Center"/>
+                                <TextBlock Text="匹配模式:" VerticalAlignment="Center" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
                                 <ComboBox ItemsSource="{Binding DataContext.MatchModes, RelativeSource={RelativeSource AncestorType=Window}}"
                                           DisplayMemberPath="Display" SelectedValuePath="Value"
                                           SelectedValue="{Binding MatchMode}"
-                                          Width="120" Height="26" Margin="4,0,12,0" VerticalContentAlignment="Center"/>
-                                <CheckBox Content="启用" IsChecked="{Binding Enabled}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                          Width="130" Height="28" Margin="6,0,14,0"
+                                          VerticalContentAlignment="Center"/>
+                                <CheckBox Content="启用" IsChecked="{Binding Enabled}" VerticalAlignment="Center" 
+                                          Margin="0,0,14,0"/>
                                 <Button Content="测试触发"
                                         Command="{Binding DataContext.TestTriggerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        CommandParameter="{Binding}" Width="80" Height="28" Margin="0,0,8,0"/>
+                                        CommandParameter="{Binding}" Width="90" Height="30" Margin="0,0,8,0"
+                                        Style="{StaticResource PrimaryButton}"/>
                                 <Button Content="删除"
                                         Command="{Binding DataContext.RemoveTriggerCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        CommandParameter="{Binding}" Width="60" Height="28"/>
+                                        CommandParameter="{Binding}" Width="70" Height="30"
+                                        Style="{StaticResource SecondaryButton}"/>
                             </StackPanel>
 
-                            <StackPanel Margin="0,8,0,0">
+                            <StackPanel Margin="0,12,0,0">
                                 <WrapPanel>
-                                    <TextBlock Text="触发配置:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,6,0"/>
-                                    <CheckBox Content="记录读取坐标" IsChecked="{Binding RecordRead}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                    <CheckBox Content="记录转换坐标" IsChecked="{Binding RecordConvert}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                    <CheckBox Content="记录二维坐标" IsChecked="{Binding Record2D}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                    <CheckBox Content="读取机器人位置" IsChecked="{Binding ReadRobot}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                    <CheckBox Content="转为二维坐标" IsChecked="{Binding Convert2D}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <TextBlock Text="触发配置:" VerticalAlignment="Center" FontWeight="SemiBold" 
+                                               Margin="0,0,8,0"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    <CheckBox Content="记录读取坐标" IsChecked="{Binding RecordRead}" VerticalAlignment="Center" 
+                                              Margin="0,0,14,0"/>
+                                    <CheckBox Content="记录转换坐标" IsChecked="{Binding RecordConvert}" VerticalAlignment="Center" 
+                                              Margin="0,0,14,0"/>
+                                    <CheckBox Content="记录二维坐标" IsChecked="{Binding Record2D}" VerticalAlignment="Center" 
+                                              Margin="0,0,14,0"/>
+                                    <CheckBox Content="读取机器人位置" IsChecked="{Binding ReadRobot}" VerticalAlignment="Center" 
+                                              Margin="0,0,14,0"/>
+                                    <CheckBox Content="转为二维坐标" IsChecked="{Binding Convert2D}" VerticalAlignment="Center" 
+                                              Margin="0,0,14,0"/>
                                     <CheckBox Content="转换为6轴坐标" IsChecked="{Binding Convert6Axis}" VerticalAlignment="Center"/>
                                 </WrapPanel>
-                                <WrapPanel Margin="0,6,0,0">
-                                    <TextBlock Text="连续执行:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,6,0"/>
-                                    <CheckBox Content="启用" IsChecked="{Binding Continuous}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                    <TextBlock Text="执行次数:" VerticalAlignment="Center"/>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <TextBlock Text="连续执行:" VerticalAlignment="Center" FontWeight="SemiBold" 
+                                               Margin="0,0,8,0"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    <CheckBox Content="启用" IsChecked="{Binding Continuous}" VerticalAlignment="Center" 
+                                              Margin="0,0,14,0"/>
+                                    <TextBlock Text="执行次数:" VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
                                     <TextBox Text="{Binding ExecCountText, UpdateSourceTrigger=PropertyChanged}"
-                                             Width="60" Height="26" Margin="4,0,0,0" VerticalContentAlignment="Center"/>
+                                             Style="{StaticResource InputBox}"
+                                             Width="70" Height="28" Margin="6,0,0,0"
+                                             VerticalContentAlignment="Center"/>
                                 </WrapPanel>
                             </StackPanel>
 
                             <TextBlock Text="触发时: 依次执行保存记录坐标按钮 → 读取机器人位置 → 转为二维坐标 → 转换为6轴坐标，并通过接收设备依次回传: 机器人坐标:数据、二维坐标:X：数据,Y：数据、转换后的6轴坐标:数据；开启连续执行后按设定次数重复执行。"
-                                       FontSize="11" Foreground="Gray" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" 
+                                       TextWrapping="Wrap" Margin="0,8,0,0"/>
                         </StackPanel>
                     </Border>
                 </DataTemplate>

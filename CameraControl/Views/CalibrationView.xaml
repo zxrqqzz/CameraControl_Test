@@ -4,8 +4,9 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d"
-             d:DesignHeight="450" d:DesignWidth="800">
-    <Grid Margin="8">
+             d:DesignHeight="450" d:DesignWidth="800"
+             Background="{StaticResource BackgroundBrush}">
+    <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -13,35 +14,41 @@
         </Grid.RowDefinitions>
 
         <!-- 第一步: 标定点采集 -->
-        <Border Grid.Row="0" BorderBrush="Gray" BorderThickness="1" Margin="0,0,0,8" Padding="8">
+        <Border Grid.Row="0" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" 
+                BorderThickness="1" Margin="0,0,0,12" Padding="12">
             <StackPanel>
                 <TextBlock Text="第一步: 三点确定一个平面，将机器人移动到原点、X轴上一点、Y轴上一点并读取"
-                           FontWeight="Bold" FontSize="13" Margin="0,0,0,6"/>
+                           FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
                 <UniformGrid Columns="3">
-                    <Button Content="读取原点" Command="{Binding ReadPointCommand}" CommandParameter="1" Height="34" Margin="2"/>
-                    <Button Content="读取X轴点" Command="{Binding ReadPointCommand}" CommandParameter="2" Height="34" Margin="2"/>
-                    <Button Content="读取Y轴点" Command="{Binding ReadPointCommand}" CommandParameter="3" Height="34" Margin="2"/>
+                    <Button Content="读取原点" Command="{Binding ReadPointCommand}" CommandParameter="1" Height="36" Margin="4"
+                            Style="{StaticResource PrimaryButton}"/>
+                    <Button Content="读取X轴点" Command="{Binding ReadPointCommand}" CommandParameter="2" Height="36" Margin="4"
+                            Style="{StaticResource PrimaryButton}"/>
+                    <Button Content="读取Y轴点" Command="{Binding ReadPointCommand}" CommandParameter="3" Height="36" Margin="4"
+                            Style="{StaticResource PrimaryButton}"/>
                 </UniformGrid>
-                <ListBox ItemsSource="{Binding Points}" Height="120" Margin="0,6,0,0"
-                         FontFamily="Consolas" FontSize="13" Background="White">
+                <ListBox ItemsSource="{Binding Points}" Height="120" Margin="0,12,0,0"
+                         Style="{StaticResource ListBoxStyle}"
+                         FontFamily="Consolas" FontSize="13">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
-                                <!-- 状态图标: 空心=未读取, 实心=已读取 -->
-                                <Ellipse Width="14" Height="14" Stroke="#FF007ACC" StrokeThickness="2"
-                                         Margin="0,0,6,0" VerticalAlignment="Center">
+                                <Ellipse Width="12" Height="12" Stroke="{StaticResource AccentBrush}" StrokeThickness="2"
+                                         Margin="0,0,8,0" VerticalAlignment="Center">
                                     <Ellipse.Style>
                                         <Style TargetType="Ellipse">
                                             <Setter Property="Fill" Value="Transparent"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsRead}" Value="True">
-                                                    <Setter Property="Fill" Value="#FF007ACC"/>
+                                                    <Setter Property="Fill" Value="{StaticResource AccentBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Ellipse.Style>
                                 </Ellipse>
-                                <TextBlock Text="{Binding Display}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Display}" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -50,48 +57,62 @@
         </Border>
 
         <!-- 第二步: 计算标定 + 取值范围/精度设置 + 导出/导入 -->
-        <StackPanel Grid.Row="1" Margin="0,0,0,8">
+        <StackPanel Grid.Row="1" Margin="0,0,0,12">
             <WrapPanel>
                 <Button Content="第二步: 建立二维直角坐标系(计算标定)"
                         Command="{Binding CalculateCommand}"
-                        Width="240" Height="36" Margin="0,0,8,0" FontSize="13"/>
+                        Style="{StaticResource PrimaryButton}"
+                        Width="260" Height="36" Margin="0,0,12,0"/>
                 <!-- 取值范围/精度设置区 -->
-                <Border BorderBrush="DodgerBlue" BorderThickness="1" Margin="0,0,8,0"
-                        Padding="6,2" VerticalAlignment="Center">
+                <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource AccentBrush}" 
+                        BorderThickness="1" Margin="0,0,12,0"
+                        Padding="10,6" VerticalAlignment="Center">
                     <Border.ToolTip>
                         <TextBlock Text="物料板为 48cm(480mm)，坐标按 mm 输出。&#x0a;取值范围: 板宽/板高定义了 X2、Y2 的合法区间 [0~上限]mm。&#x0a;精度: 坐标输出按该值取整(如 1=mm, 0.1=亚毫米)。"/>
                     </Border.ToolTip>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="板宽(mm):" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Text="板宽(mm):" FontSize="13" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
                         <TextBox Text="{Binding BoardWidthText, UpdateSourceTrigger=PropertyChanged}"
-                                 Width="52" Height="26" Margin="2,0,6,0"
+                                 Style="{StaticResource InputBox}"
+                                 Width="56" Height="28" Margin="6,0,12,0"
                                  VerticalContentAlignment="Center"/>
-                        <TextBlock Text="板高(mm):" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Text="板高(mm):" FontSize="13" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
                         <TextBox Text="{Binding BoardHeightText, UpdateSourceTrigger=PropertyChanged}"
-                                 Width="52" Height="26" Margin="2,0,6,0"
+                                 Style="{StaticResource InputBox}"
+                                 Width="56" Height="28" Margin="6,0,12,0"
                                  VerticalContentAlignment="Center"/>
-                        <TextBlock Text="精度(mm):" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Text="精度(mm):" FontSize="13" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
                         <TextBox Text="{Binding PrecisionText, UpdateSourceTrigger=PropertyChanged}"
-                                 Width="52" Height="26" Margin="2,0,0,0"
+                                 Style="{StaticResource InputBox}"
+                                 Width="56" Height="28" Margin="6,0,0,0"
                                  VerticalContentAlignment="Center"/>
                     </StackPanel>
                 </Border>
                 <Button Content="导出坐标系" Command="{Binding ExportCommand}"
-                        Width="92" Height="30" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        Style="{StaticResource SecondaryButton}"
+                        Width="100" Height="32" Margin="0,0,8,0" VerticalAlignment="Center"/>
                 <Button Content="导入坐标系" Command="{Binding ImportCommand}"
-                        Width="92" Height="30" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        Style="{StaticResource SecondaryButton}"
+                        Width="100" Height="32" Margin="0,0,8,0" VerticalAlignment="Center"/>
                 <Button Content="清空标定" Command="{Binding ClearCommand}"
-                        Width="90" Height="30" VerticalAlignment="Center"/>
+                        Style="{StaticResource SecondaryButton}"
+                        Width="100" Height="32" VerticalAlignment="Center"/>
             </WrapPanel>
         </StackPanel>
 
         <!-- 输出区(可选取复制) -->
-        <Border Grid.Row="2" BorderBrush="Gray" BorderThickness="1" Margin="0,8,0,0">
+        <Border Grid.Row="2" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" 
+                BorderThickness="1" Margin="0,12,0,0">
             <TextBox Text="{Binding OutputText, Mode=OneWay}"
                      IsReadOnly="True" TextWrapping="Wrap"
                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                     FontFamily="Consolas" FontSize="13" Padding="6"
-                     Background="White" Foreground="Black"/>
+                     FontFamily="Consolas" FontSize="13" Padding="8"
+                     Background="{StaticResource CardBrush}" 
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     BorderThickness="0"/>
         </Border>
     </Grid>
 </UserControl>
