@@ -1,212 +1,430 @@
-﻿//using MvCameraControl;
-//using System;
-//using System.Windows.Interop;
-//using System.Windows.Media;
-//using System.Windows.Media.Imaging;
+﻿using MvCameraControl;
+using System;
+using System.Collections.Generic;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
-//namespace CameraControl.Services
-//{
-//    public class HikCameraService : ICameraService
-//    {
-//        private IDevice _camera;
-//        private bool _isGrabbing;
-//        private readonly object _lock = new object();
+namespace CameraControl.Services
+{
+    /// <summary>
+    /// 海康相机采集服务: 设备枚举/连接、取流控制、软触发、图像回调与像素格式转换全部封装于此，
+    /// 界面层(MainViewModel)只做命令转发与结果显示。
+    /// </summary>
+    public class HikCameraService : ICameraService
+    {
+        // 相机IP与PC网卡IP
+        private const string CameraIp = "192.168.1.10";
+        private const string NetExportIp = "192.168.1.100";
 
-//        public event Action<BitmapSource> ImageReceived;
-//        public event Action<string> LogMessage;
+        // 同步取一帧的默认等待时间(毫秒)
+        private const uint GrabTimeoutMs = 1000;
 
-//        public void Initialize()
-//        {
-//            try
-//            {
-//                LogMessage?.Invoke("初始化 SDK...");
-//                int ret = SDKSystem.Initialize();
-//                if (ret != MvError.MV_OK)
-//                {
-//                    LogMessage?.Invoke($"SDK 初始化失败，错误码: {ret:X}");
-//                    return;
-//                }
+        // 图像缓存队列深度
+        private const uint ImageNodeNum = 5;
 
-//                // 枚举设备
-//                List<IDeviceInfo> deviceInfos;
-//                ret = DeviceEnumerator.EnumDevices(
-//                    DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice,
-//                    out deviceInfos);
-//                if (ret != MvError.MV_OK || deviceInfos.Count == 0)
-//                {
-//                    LogMessage?.Invoke("未找到相机！");
-//                    return;
-//                }
+        private IDevice? _camera;
+        private bool _sdkInitialized;
+        private bool _callbackRegistered;
 
-//                // 选择第一个相机
-//                var deviceInfo = deviceInfos[0];
-//                _camera = DeviceFactory.CreateDevice(deviceInfo);
-//                ret = _camera.Open();
-//                if (ret != MvError.MV_OK)
-//                {
-//                    LogMessage?.Invoke($"打开相机失败，错误码: {ret:X}");
-//                    _camera = null;
-//                    return;
-//                }
+        public bool IsConnected => _camera != null && _camera.IsConnected;
 
-//                // 如果是 GigE 相机，设置最佳包大小
-//                if (_camera is IGigEDevice gigECamera)
-//                {
-//                    gigECamera.GetOptimalPacketSize(out int packetSize);
-//                    _camera.Parameters.SetIntValue("GevSCPSPacketSize", packetSize);
-//                }
+        public bool IsGrabbing { get; private set; }
 
-//                // 注册图像回调
-//                _camera.StreamGrabber.FrameGrabedEvent += OnFrameGrabed;
+        public event Action<BitmapSource>? ImageReceived;
 
-//                LogMessage?.Invoke("相机初始化成功！");
-//            }
-//            catch (Exception ex)
-//            {
-//                LogMessage?.Invoke($"初始化异常: {ex.Message}");
-//            }
-//        }
+        public event Action<string>? LogMessage;
 
-//        public void StartGrabbing(bool triggerMode)
-//        {
-//            if (_camera == null)
-//            {
-//                LogMessage?.Invoke("相机未初始化！");
-//                return;
-//            }
+        /// <summary>
+        /// SDK 初始化 + 枚举设备 + 连接
+        /// </summary>
+        public void Initialize()
+        {
+            if (!_sdkInitialized)
+            {
+                int ret = SDKSystem.Initialize();
+                _sdkInitialized = ret == MvError.MV_OK;
+                Log(_sdkInitialized ? "SDK 初始化完成" : $"SDK 初始化失败: 0x{ret:X}");
+            }
 
-//            lock (_lock)
-//            {
-//                if (_isGrabbing)
-//                {
-//                    LogMessage?.Invoke("采集已启动，请勿重复操作");
-//                    return;
-//                }
+            EnumDevices();
+            Connect();
+        }
 
-//                // 设置触发模式
-//                if (triggerMode)
-//                {
-//                    _camera.Parameters.SetEnumValueByString("TriggerSource", "Software");
-//                    _camera.Parameters.SetEnumValueByString("TriggerMode", "On");
-//                }
-//                else
-//                {
-//                    _camera.Parameters.SetEnumValueByString("TriggerMode", "Off");
-//                }
+        /// <summary>
+        /// 枚举设备，获取设备信息
+        /// </summary>
+        private void EnumDevices()
+        {
+            List<IDeviceInfo> devInfoList;
+            int ret = DeviceEnumerator.EnumDevicesEx(
+                 DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice, "", out devInfoList);
+            if (ret == MvError.MV_OK)
+            {
+                Log($"枚举设备成功，设备数量: {devInfoList.Count}");
+                foreach (var dev in devInfoList)
+                    Log($"型号: {dev.ModelName}, 厂商: {dev.ManufacturerName}, 序列号: {dev.SerialNumber}");
+            }
+            else
+            {
+                Log($"枚举设备失败: 0x{ret:X}");
+            }
+        }
 
-//                // 设置缓存节点数
-//                _camera.StreamGrabber.SetImageNodeNum(5);
+        /// <summary>
+        /// 连接相机(创建/打开设备，可反复调用)
+        /// </summary>
+        public bool Connect()
+        {
+            try
+            {
+                if (_camera == null)
+                {
+                    _camera = DeviceFactory.CreateDeviceByIp(CameraIp, NetExportIp);
+                    Log($"已创建相机对象: {_camera}");
+                }
 
-//                // 开始采集
-//                int ret = _camera.StreamGrabber.StartGrabbing();
-//                if (ret != MvError.MV_OK)
-//                {
-//                    LogMessage?.Invoke($"开始采集失败，错误码: {ret:X}");
-//                    return;
-//                }
+                int ret = _camera.Open();
+                if (ret != MvError.MV_OK)
+                {
+                    Log($"打开相机失败: 0x{ret:X}");
+                    return false;
+                }
 
-//                _isGrabbing = true;
-//                LogMessage?.Invoke($"采集已启动（触发模式：{triggerMode}）");
-//            }
-//        }
+                Log($"相机 {_camera} 连接成功");
+                return true;
+            }
+            catch (Exception e)
+            {
+                Log($"打开相机失败: {e.Message}");
+                return false;
+            }
+        }
 
-//        public void StopGrabbing()
-//        {
-//            lock (_lock)
-//            {
-//                if (!_isGrabbing || _camera == null) return;
+        /// <summary>
+        /// 断开相机(停止取流并关闭设备，可再次连接)
+        /// </summary>
+        public void Disconnect()
+        {
+            try
+            {
+                if (_camera == null) return;
 
-//                int ret = _camera.StreamGrabber.StopGrabbing();
-//                if (ret != MvError.MV_OK)
-//                {
-//                    LogMessage?.Invoke($"停止采集失败，错误码: {ret:X}");
-//                }
-//                else
-//                {
-//                    _isGrabbing = false;
-//                    LogMessage?.Invoke("采集已停止");
-//                }
-//            }
-//        }
+                StopGrabbing();
 
-//        public void TriggerOnce()
-//        {
-//            if (_camera == null || !_isGrabbing)
-//            {
-//                LogMessage?.Invoke("相机未就绪或未开始采集，无法触发");
-//                return;
-//            }
+                int ret = _camera.Close();
+                if (ret != MvError.MV_OK)
+                    Log($"关闭相机返回: 0x{ret:X}");
+                else
+                    Log("相机已断开");
+            }
+            catch (Exception e)
+            {
+                Log($"断开相机异常: {e.Message}");
+            }
+        }
 
-//            int ret = _camera.Parameters.SetCommandValue("TriggerSoftware");
-//            if (ret != MvError.MV_OK)
-//            {
-//                LogMessage?.Invoke($"触发失败，错误码: {ret:X}");
-//            }
-//            else
-//            {
-//                LogMessage?.Invoke("触发拍照成功");
-//            }
-//        }
+        /// <summary>
+        /// 开始取流
+        /// </summary>
+        /// <param name="triggerMode">true=软触发模式(配合 TriggerOnce 使用)，false=连续模式</param>
+        public bool StartGrabbing(bool triggerMode)
+        {
+            if (!IsConnected)
+            {
+                Log("相机未连接, 无法开始采集");
+                return false;
+            }
+            if (IsGrabbing)
+            {
+                Log("采集已在进行中");
+                return true;
+            }
 
-//        private void OnFrameGrabed(object sender, FrameGrabbedEventArgs e)
-//        {
-//            try
-//            {
-//                // 获取图像数据
-//                var image = e.FrameOut.Image;
-//                // 转换为 BitmapSource（深拷贝，避免后续释放影响）
-//                var bitmap = image.ToBitmap();
-//                var bitmapSource = ConvertBitmapToBitmapSource(bitmap);
+            try
+            {
+                var camera = _camera!;
+                int ret;
+                if (triggerMode)
+                {
+                    // 软触发: 触发源为软件指令, 由 TriggerOnce() 发出触发
+                    camera.Parameters.SetEnumValueByString("TriggerSelector", "FrameStart");
+                    ret = camera.Parameters.SetEnumValueByString("TriggerSource", "Software");
+                    if (ret != MvError.MV_OK)
+                    {
+                        Log($"设置触发源失败: 0x{ret:X}");
+                        return false;
+                    }
+                    ret = camera.Parameters.SetEnumValueByString("TriggerMode", "On");
+                }
+                else
+                {
+                    // 连续模式: 关闭触发, 相机自由连续出图
+                    ret = camera.Parameters.SetEnumValueByString("TriggerMode", "Off");
+                }
+                if (ret != MvError.MV_OK)
+                {
+                    Log($"设置触发模式失败: 0x{ret:X}");
+                    return false;
+                }
 
-//                // 触发事件，让 ViewModel 更新 UI
-//                ImageReceived?.Invoke(bitmapSource);
+                RegisterFrameCallback();
 
-//                // 释放图像缓存（必须）
-//                _camera.StreamGrabber.FreeImageBuffer(e.FrameOut);
-//            }
-//            catch (Exception ex)
-//            {
-//                LogMessage?.Invoke($"回调处理异常: {ex.Message}");
-//            }
-//        }
+                ret = camera.StreamGrabber.SetImageNodeNum(ImageNodeNum);
+                if (ret != MvError.MV_OK)
+                    Log($"设置缓存节点数返回: 0x{ret:X}");
 
-//        private BitmapSource ConvertBitmapToBitmapSource(System.Drawing.Bitmap bitmap)
-//        {
-//            var hBitmap = bitmap.GetHbitmap();
-//            try
-//            {
-//                return Imaging.CreateBitmapSourceFromHBitmap(
-//                    hBitmap,
-//                    IntPtr.Zero,
-//                    System.Windows.Int32Rect.Empty,
-//                    BitmapSizeOptions.FromEmptyOptions());
-//            }
-//            finally
-//            {
-//                // 释放 GDI 句柄
-//                Gdi32.DeleteObject(hBitmap);
-//            }
-//        }
+                ret = camera.StreamGrabber.StartGrabbing();
+                if (ret != MvError.MV_OK)
+                {
+                    Log($"开启取流失败: 0x{ret:X}");
+                    return false;
+                }
 
-//        // 辅助方法：释放 GDI 对象
-//        private static class Gdi32
-//        {
-//            [System.Runtime.InteropServices.DllImport("gdi32.dll")]
-//            public static extern bool DeleteObject(IntPtr hObject);
-//        }
+                IsGrabbing = true;
+                Log(triggerMode ? "已进入软触发采集模式" : "连续采集已开始");
+                return true;
+            }
+            catch (Exception e)
+            {
+                Log($"开始采集异常: {e.Message}");
+                return false;
+            }
+        }
 
-//        public void Dispose()
-//        {
-//            StopGrabbing();
-//            if (_camera != null)
-//            {
-//                _camera.StreamGrabber.FrameGrabedEvent -= OnFrameGrabed;
-//                _camera.Close();
-//                _camera.Dispose();
-//                _camera = null;
-//            }
-//            SDKSystem.Finalize();
-//            LogMessage?.Invoke("相机资源已释放");
-//        }
-//    }
-//}
+        /// <summary>
+        /// 停止取流
+        /// </summary>
+        public void StopGrabbing()
+        {
+            try
+            {
+                if (_camera == null || !IsGrabbing) return;
+
+                int ret = _camera.StreamGrabber.StopGrabbing();
+                IsGrabbing = false;
+                if (ret != MvError.MV_OK)
+                    Log($"停止取流返回: 0x{ret:X}");
+                else
+                    Log("采集已停止");
+            }
+            catch (Exception e)
+            {
+                IsGrabbing = false;
+                Log($"停止采集异常: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 软触发拍照一次(仅在软触发取流状态下有效, 图像经回调送出)
+        /// </summary>
+        public void TriggerOnce()
+        {
+            if (_camera == null || !IsGrabbing)
+            {
+                Log("未处于采流状态, 无法软触发");
+                return;
+            }
+
+            int ret = _camera.Parameters.SetCommandValue("TriggerSoftware");
+            if (ret != MvError.MV_OK)
+                Log($"软触发失败: 0x{ret:X}");
+            else
+                Log("软触发已发出");
+        }
+
+        /// <summary>
+        /// 单次采集: 未取流则先以连续模式开流, 同步取一帧显示后停止取流恢复原状态
+        /// </summary>
+        public void CaptureOnce()
+        {
+            if (!IsConnected)
+            {
+                Log("相机未连接, 无法单次采集");
+                return;
+            }
+
+            bool startedHere = false;
+            if (!IsGrabbing)
+            {
+                if (!StartGrabbing(false)) return;
+                startedHere = true;
+            }
+
+            var frame = AcquireOneFrame(GrabTimeoutMs);
+            if (frame != null)
+                ImageReceived?.Invoke(frame);
+            else
+                Log("单次采集未获取到图像");
+
+            if (startedHere)
+                StopGrabbing();
+        }
+
+        /// <summary>
+        /// 连续采集开关: 未取流则开始连续取流, 正在取流则停止
+        /// </summary>
+        public void ToggleContinuousCapture()
+        {
+            if (!IsConnected)
+            {
+                Log("相机未连接, 无法连续采集");
+                return;
+            }
+
+            if (IsGrabbing)
+                StopGrabbing();
+            else
+                StartGrabbing(false);
+        }
+
+        /// <summary>
+        /// 同步阻塞获取一帧图像并转为 BitmapSource(不经过回调, 需已 StartGrabbing)
+        /// </summary>
+        public BitmapSource? AcquireOneFrame(uint timeoutMs = 1000)
+        {
+            if (_camera == null || !IsGrabbing)
+            {
+                Log("请先开始采集再获取图像");
+                return null;
+            }
+
+            IFrameOut? frameOut = null;
+            try
+            {
+                int ret = _camera.StreamGrabber.GetImageBuffer(timeoutMs, out frameOut);
+                if (ret != MvError.MV_OK || frameOut == null)
+                {
+                    Log($"获取图像超时或失败: 0x{ret:X}");
+                    return null;
+                }
+
+                var bitmap = ConvertToBitmapSource(frameOut.Image);
+                bitmap?.Freeze();
+                if (bitmap != null)
+                    Log($"已获取一帧: {frameOut.Image.Width}x{frameOut.Image.Height}, 帧号 {frameOut.FrameNum}");
+                return bitmap;
+            }
+            catch (Exception e)
+            {
+                Log($"获取图像异常: {e.Message}");
+                return null;
+            }
+            finally
+            {
+                // 必须归还缓存, 否则取流若干帧后无图可取
+                try { if (frameOut != null) _camera.StreamGrabber.FreeImageBuffer(frameOut); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// 注册图像回调(在开始取流前调用, 只需注册一次)
+        /// </summary>
+        private void RegisterFrameCallback()
+        {
+            if (_camera == null || _callbackRegistered) return;
+            _camera.StreamGrabber.FrameGrabedEvent += OnFrameGrabed;
+            _callbackRegistered = true;
+        }
+
+        /// <summary>
+        /// 取流回调: 收到一帧 → 转 BitmapSource → 通过 ImageReceived 送出
+        /// </summary>
+        private void OnFrameGrabed(object? sender, FrameGrabbedEventArgs e)
+        {
+            try
+            {
+                var image = e.FrameOut?.Image;
+                if (image == null) return;
+
+                var bitmap = ConvertToBitmapSource(image);
+                if (bitmap == null) return;
+                bitmap.Freeze();
+
+                ImageReceived?.Invoke(bitmap);
+            }
+            catch (Exception ex)
+            {
+                Log($"处理图像帧异常: {ex.Message}");
+            }
+            finally
+            {
+                try { if (_camera != null && e.FrameOut != null) _camera.StreamGrabber.FreeImageBuffer(e.FrameOut); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// 将 SDK 图像数据转换为 WPF 的 BitmapSource:
+        /// Mono8/RGB8/BGR8/BGRA8 直接映射; 其它格式(Bayer/16位/YUV等)先经 SDK 转成 RGB8 再显示
+        /// </summary>
+        private BitmapSource? ConvertToBitmapSource(IImage image)
+        {
+            if (image == null || image.Width == 0 || image.Height == 0) return null;
+
+            int width = (int)image.Width;
+            int height = (int)image.Height;
+
+            PixelFormat? directFormat = image.PixelType switch
+            {
+                MvGvspPixelType.PixelType_Gvsp_Mono8 => PixelFormats.Gray8,
+                MvGvspPixelType.PixelType_Gvsp_RGB8_Packed => PixelFormats.Rgb24,
+                MvGvspPixelType.PixelType_Gvsp_BGR8_Packed => PixelFormats.Bgr24,
+                MvGvspPixelType.PixelType_Gvsp_BGRA8_Packed => PixelFormats.Bgra32,
+                _ => null,
+            };
+
+            if (directFormat is PixelFormat format)
+            {
+                byte[] data = image.PixelData;
+                int stride = width * (format.BitsPerPixel / 8);
+                return BitmapSource.Create(width, height, 96, 96, format, null, data, stride);
+            }
+
+            if (_camera == null)
+            {
+                Log($"不支持的像素格式且相机不可用: {image.PixelType}");
+                return null;
+            }
+
+            IImage converted = null!;
+            try
+            {
+                int ret = _camera.PixelTypeConverter.ConvertPixelType(
+                    image, out converted, MvGvspPixelType.PixelType_Gvsp_RGB8_Packed);
+                if (ret != MvError.MV_OK)
+                {
+                    Log($"像素格式转换失败: 0x{ret:X} ({image.PixelType})");
+                    return null;
+                }
+
+                byte[] data = converted.PixelData;
+                int stride = width * 3;
+                return BitmapSource.Create(width, height, 96, 96, PixelFormats.Rgb24, null, data, stride);
+            }
+            finally
+            {
+                try { converted?.Dispose(); } catch { }
+            }
+        }
+
+        /// <summary>日志输出</summary>
+        private void Log(string message) => LogMessage?.Invoke(message);
+
+        public void Dispose()
+        {
+            StopGrabbing();
+            if (_callbackRegistered && _camera != null)
+            {
+                try { _camera.StreamGrabber.FrameGrabedEvent -= OnFrameGrabed; } catch { }
+                _callbackRegistered = false;
+            }
+            try { _camera?.Dispose(); } catch { }
+            _camera = null;
+
+            if (_sdkInitialized)
+            {
+                SDKSystem.Finalize();
+                _sdkInitialized = false;
+            }
+        }
+    }
+}

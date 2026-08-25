@@ -1,40 +1,56 @@
 ﻿using System;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace CameraControl.Services
 {
+    /// <summary>
+    /// 相机采集服务接口(封装海康 MVS SDK)
+    /// </summary>
     public interface ICameraService : IDisposable
     {
-        /// <summary>
-        /// 初始化相机（枚举、打开、配置）
-        /// </summary>
+        /// <summary>相机是否已连接</summary>
+        bool IsConnected { get; }
+
+        /// <summary>是否正在取流</summary>
+        bool IsGrabbing { get; }
+
+        /// <summary>初始化(SDK 初始化、枚举设备并连接)</summary>
         void Initialize();
 
-        /// <summary>
-        /// 开始采集（连续流或触发模式）
-        /// </summary>
-        /// <param name="triggerMode">true=触发模式，false=连续模式</param>
-        void StartGrabbing(bool triggerMode);
+        /// <summary>连接相机(创建/打开设备，可反复调用)</summary>
+        bool Connect();
+
+        /// <summary>断开相机(停止取流并关闭设备，可再次连接)</summary>
+        void Disconnect();
 
         /// <summary>
-        /// 停止采集
+        /// 开始取流
         /// </summary>
+        /// <param name="triggerMode">true=软触发模式(配合 TriggerOnce 使用)，false=连续模式</param>
+        bool StartGrabbing(bool triggerMode);
+
+        /// <summary>停止取流</summary>
         void StopGrabbing();
 
-        /// <summary>
-        /// 触发一次拍照（仅在触发模式下有效）
-        /// </summary>
+        /// <summary>软触发拍照一次(仅在软触发取流状态下有效)</summary>
         void TriggerOnce();
 
         /// <summary>
-        /// 图像到达事件（回调中触发，携带 BitmapSource）
+        /// 同步阻塞获取一帧图像(需处于取流状态，不经过回调)
         /// </summary>
-        event Action<BitmapSource> ImageReceived;
+        /// <param name="timeoutMs">等待超时(毫秒)</param>
+        BitmapSource? AcquireOneFrame(uint timeoutMs = 1000);
 
-        /// <summary>
-        /// 日志事件
-        /// </summary>
-        event Action<string> LogMessage;
+        /// <summary>单次采集: 自动开流取一帧显示，完成后恢复原状态</summary>
+        void CaptureOnce();
+
+        /// <summary>连续采集开关: 未取流则开始连续取流，正在取流则停止</summary>
+        void ToggleContinuousCapture();
+
+        /// <summary>图像到达事件(Bitmap 已 Freeze，可跨线程使用)</summary>
+        event Action<BitmapSource>? ImageReceived;
+
+        /// <summary>日志事件</summary>
+        event Action<string>? LogMessage;
     }
 }

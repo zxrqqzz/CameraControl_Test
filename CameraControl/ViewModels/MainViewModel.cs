@@ -1,13 +1,12 @@
-﻿using GalaSoft.MvvmLight.Command;
-using MvCameraControl;
+﻿using CameraControl.Services;
+using GalaSoft.MvvmLight.Command;
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace CameraControl.ViewModels
 {
@@ -18,13 +17,8 @@ namespace CameraControl.ViewModels
         /// </summary>
         public LogViewModel LogVM { get; } = App.LogVM;
 
-        // 相机对象
-        IDevice? _camera = null;
-        private IntPtr _displayHandle;   // PictureBox 的句柄
-
-        // 相机IP与PC网卡IP
-        private const string CameraIp = "192.168.1.10";
-        private const string NetExportIp = "192.168.1.100";
+        // 相机采集服务(SDK 逻辑全部封装在 Services 层)
+        private readonly ICameraService _cameraService = new HikCameraService();
 
         // 命令绑定
         public ICommand SingleCaptureCommand { get; }
@@ -64,9 +58,19 @@ namespace CameraControl.ViewModels
             set { _isCameraConnected = value; OnPropertyChanged(); }
         }
 
+        private BitmapSource? _currentImage;
+        /// <summary>当前显示的图像(主界面 Image 绑定)</summary>
+        public BitmapSource? CurrentImage
+        {
+            get => _currentImage;
+            set { _currentImage = value; OnPropertyChanged(); }
+        }
+
         public MainViewModel()
         {
-            SDKSystem.Initialize();//初始化
+            // 订阅服务日志与图像事件
+            _cameraService.LogMessage += msg => LogVM.AddLog(msg);
+            _cameraService.ImageReceived += OnImageReceived;
 
             SingleCaptureCommand = new RelayCommand(SingleCapture);
             ContinuousCaptureCommand = new RelayCommand(ContinuousCapture);
@@ -81,8 +85,26 @@ namespace CameraControl.ViewModels
             CalibrationVM = App.Calibration;
             UserCoordVM = App.UserCoordinate;
 
-            DeviceCamera();
+            // 枚举并连接相机
+            _cameraService.Initialize();
+            UpdateConnectionState();
+        }
 
+        /// <summary>收到图像: 切回 UI 线程刷新显示</summary>
+        private void OnImageReceived(BitmapSource image)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+                dispatcher.BeginInvoke(new Action(() => CurrentImage = image));
+            else
+                CurrentImage = image;
+        }
+
+        /// <summary>根据服务状态刷新连接显示</summary>
+        private void UpdateConnectionState()
+        {
+            CameraStatusText = _cameraService.IsConnected ? "已连接" : "未连接";
+            IsCameraConnected = _cameraService.IsConnected;
         }
 
         /// <summary>切换到主界面</summary>
@@ -138,114 +160,46 @@ namespace CameraControl.ViewModels
         }
 
         /// <summary>
-        /// 相机设备枚举和创建
-        /// </summary>
-        public void DeviceCamera()
-        {
-            //枚举设备，获取设备信息
-            List<IDeviceInfo> devInfoList = null;
-            int ret = DeviceEnumerator.EnumDevicesEx(
-                 DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice, "", out devInfoList);
-            if (ret == MvError.MV_OK)
-            {
-                /*处理XXX厂商的相机*/
-                App.LogVM.AddLog($"枚举设备成功，设备数量: {devInfoList.Count}");
-                foreach (var dev in devInfoList)
-                    App.LogVM.AddLog($"型号: {dev.ModelName}, 厂商: {dev.ManufacturerName}, 序列号: {dev.SerialNumber}");
-            }
-
-            // 打开相机
-            ConnectCamera();
-        }
-
-        /// <summary>
-        /// 连接相机(创建/打开设备，可反复调用)
+        /// 连接相机
         /// </summary>
         private void ConnectCamera()
         {
-            try
-            {
-                if (_camera == null)
-                {
-                    _camera = DeviceFactory.CreateDeviceByIp(CameraIp, NetExportIp);
-                    LogVM.AddLog($"已创建相机对象: {_camera}");
-                }
-
-                // 打开设备
-                int ret = _camera.Open();
-                if (ret != MvError.MV_OK)
-                {
-                    LogVM.AddLog($"打开相机失败: 0x{ret:X}");
-                    CameraStatusText = "连接失败";
-                    IsCameraConnected = false;
-                    return;
-                }
-
-                LogVM.AddLog($"相机 {_camera} 连接成功");
-                CameraStatusText = "已连接";
-                IsCameraConnected = true;
-            }
-            catch (Exception e)
-            {
-                LogVM.AddLog($"打开相机失败: {e.Message}");
-                CameraStatusText = "连接失败";
-                IsCameraConnected = false;
-            }
+            _cameraService.Connect();
+            UpdateConnectionState();
         }
 
         /// <summary>
-        /// 断开相机(关闭设备，可再次连接)
+        /// 断开相机
         /// </summary>
         private void DisconnectCamera()
         {
-            try
-            {
-                if (_camera == null) return;
-                int ret = _camera.Close();
-                if (ret != MvError.MV_OK)
-                    LogVM.AddLog($"关闭相机返回: 0x{ret:X}");
-                else
-                    LogVM.AddLog("相机已断开");
-            }
-            catch (Exception e)
-            {
-                LogVM.AddLog($"断开相机异常: {e.Message}");
-            }
-            finally
-            {
-                CameraStatusText = "未连接";
-                IsCameraConnected = false;
-            }
+            _cameraService.Disconnect();
+            UpdateConnectionState();
         }
-
-
 
         /// <summary>
         /// 单次采集
         /// </summary>
         private void SingleCapture()
         {
-            
-
+            _cameraService.CaptureOnce();
         }
+
         /// <summary>
         /// 连续采集
         /// </summary>
         private void ContinuousCapture()
         {
-
+            _cameraService.ToggleContinuousCapture();
         }
-
-        
 
         /// <summary>
         /// 关闭SDK，释放资源
         /// </summary>
         public void Dispose()
         {
-            try { _camera?.Dispose(); } catch { }
-            _camera = null;
-            SDKSystem.Finalize();
+            _cameraService.ImageReceived -= OnImageReceived;
+            _cameraService.Dispose();
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
