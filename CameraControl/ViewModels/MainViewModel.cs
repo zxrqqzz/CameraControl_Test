@@ -31,16 +31,21 @@ namespace CameraControl.ViewModels
         public bool IsCalibrationView { get; private set; }
         public bool IsCalibrationToolsView { get; private set; }
         public bool IsUserCoordView { get; private set; }
+        public bool IsRobotControlView { get; private set; }
         public ICommand ShowMainViewCommand { get; }
         public ICommand ShowCalibrationViewCommand { get; }
         public ICommand ShowCalibrationToolsViewCommand { get; }
         public ICommand ShowUserCoordViewCommand { get; }
+        public ICommand ShowRobotControlViewCommand { get; }
 
         // 标定界面
         public CalibrationViewModel CalibrationVM { get; }
 
         // 用户坐标系直接读取界面
         public UserCoordinateViewModel UserCoordVM { get; }
+
+        // 机器人控制界面
+        public RobotControlViewModel RobotControlVM { get; }
 
         private string _cameraStatusText = "未连接";
         /// <summary>相机连接状态文本</summary>
@@ -66,6 +71,39 @@ namespace CameraControl.ViewModels
             set { _currentImage = value; OnPropertyChanged(); }
         }
 
+        // 十字辅助线
+        private bool _isCrosshairEnabled;
+        /// <summary>十字线是否显示</summary>
+        public bool IsCrosshairEnabled
+        {
+            get => _isCrosshairEnabled;
+            set { _isCrosshairEnabled = value; OnPropertyChanged(); }
+        }
+
+        private bool _isCrosshairViewportMode = true;
+        /// <summary>十字线模式: true=居中视口, false=居中图片</summary>
+        public bool IsCrosshairViewportMode
+        {
+            get => _isCrosshairViewportMode;
+            set
+            {
+                if (_isCrosshairViewportMode != value)
+                {
+                    _isCrosshairViewportMode = value;
+                    OnPropertyChanged();
+                    // 自动开启十字线
+                    if (!IsCrosshairEnabled) IsCrosshairEnabled = true;
+                }
+            }
+        }
+
+        /// <summary>十字线模式: true=居中图片(与ViewportMode相反)</summary>
+        public bool IsCrosshairImageMode
+        {
+            get => !_isCrosshairViewportMode;
+            set { IsCrosshairViewportMode = !value; }
+        }
+
         public MainViewModel()
         {
             // 订阅服务日志与图像事件
@@ -81,9 +119,11 @@ namespace CameraControl.ViewModels
             ShowCalibrationViewCommand = new RelayCommand(ShowCalibrationView);
             ShowCalibrationToolsViewCommand = new RelayCommand(ShowCalibrationToolsView);
             ShowUserCoordViewCommand = new RelayCommand(ShowUserCoordView);
+            ShowRobotControlViewCommand = new RelayCommand(ShowRobotControlView);
 
             CalibrationVM = App.Calibration;
             UserCoordVM = App.UserCoordinate;
+            RobotControlVM = new RobotControlViewModel(new RobotService());
 
             // 枚举并连接相机
             _cameraService.Initialize();
@@ -114,10 +154,12 @@ namespace CameraControl.ViewModels
             IsCalibrationView = false;
             IsCalibrationToolsView = false;
             IsUserCoordView = false;
+            IsRobotControlView = false;
             OnPropertyChanged(nameof(IsMainView));
             OnPropertyChanged(nameof(IsCalibrationView));
             OnPropertyChanged(nameof(IsCalibrationToolsView));
             OnPropertyChanged(nameof(IsUserCoordView));
+            OnPropertyChanged(nameof(IsRobotControlView));
         }
 
         /// <summary>切换到标定界面</summary>
@@ -127,10 +169,12 @@ namespace CameraControl.ViewModels
             IsCalibrationView = true;
             IsCalibrationToolsView = false;
             IsUserCoordView = false;
+            IsRobotControlView = false;
             OnPropertyChanged(nameof(IsMainView));
             OnPropertyChanged(nameof(IsCalibrationView));
             OnPropertyChanged(nameof(IsCalibrationToolsView));
             OnPropertyChanged(nameof(IsUserCoordView));
+            OnPropertyChanged(nameof(IsRobotControlView));
         }
 
         /// <summary>切换到标定工具界面</summary>
@@ -140,10 +184,12 @@ namespace CameraControl.ViewModels
             IsCalibrationView = false;
             IsCalibrationToolsView = true;
             IsUserCoordView = false;
+            IsRobotControlView = false;
             OnPropertyChanged(nameof(IsMainView));
             OnPropertyChanged(nameof(IsCalibrationView));
             OnPropertyChanged(nameof(IsCalibrationToolsView));
             OnPropertyChanged(nameof(IsUserCoordView));
+            OnPropertyChanged(nameof(IsRobotControlView));
         }
 
         /// <summary>切换到用户坐标系直接读取界面</summary>
@@ -153,10 +199,27 @@ namespace CameraControl.ViewModels
             IsCalibrationView = false;
             IsCalibrationToolsView = false;
             IsUserCoordView = true;
+            IsRobotControlView = false;
             OnPropertyChanged(nameof(IsMainView));
             OnPropertyChanged(nameof(IsCalibrationView));
             OnPropertyChanged(nameof(IsCalibrationToolsView));
             OnPropertyChanged(nameof(IsUserCoordView));
+            OnPropertyChanged(nameof(IsRobotControlView));
+        }
+
+        /// <summary>切换到机器人控制界面</summary>
+        private void ShowRobotControlView()
+        {
+            IsMainView = false;
+            IsCalibrationView = false;
+            IsCalibrationToolsView = false;
+            IsUserCoordView = false;
+            IsRobotControlView = true;
+            OnPropertyChanged(nameof(IsMainView));
+            OnPropertyChanged(nameof(IsCalibrationView));
+            OnPropertyChanged(nameof(IsCalibrationToolsView));
+            OnPropertyChanged(nameof(IsUserCoordView));
+            OnPropertyChanged(nameof(IsRobotControlView));
         }
 
         /// <summary>

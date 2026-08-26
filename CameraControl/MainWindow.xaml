@@ -75,6 +75,8 @@
                                  IsChecked="{Binding IsCalibrationToolsView, Mode=OneWay}" Command="{Binding ShowCalibrationToolsViewCommand}"/>
                     <RadioButton Content="用户坐标直接读取" GroupName="Nav" Style="{StaticResource NavItemStyle}"
                                  IsChecked="{Binding IsUserCoordView, Mode=OneWay}" Command="{Binding ShowUserCoordViewCommand}"/>
+                    <RadioButton Content="机器人控制" GroupName="Nav" Style="{StaticResource NavItemStyle}"
+                                 IsChecked="{Binding IsRobotControlView, Mode=OneWay}" Command="{Binding ShowRobotControlViewCommand}"/>
                 </StackPanel>
             </Border>
 
@@ -112,9 +114,67 @@
 
                 <!-- 图像显示区域 -->
                 <Grid Grid.Row="1" Margin="12">
-                    <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                        <Image Source="{Binding CurrentImage}" Stretch="Uniform"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Border Background="#E0E2E6" BorderBrush="#D0D2D6" BorderThickness="1"
+                            CornerRadius="2">
+                            <Grid Background="#E8EAED">
+                                <!-- 图像 -->
+                                <Image Source="{Binding CurrentImage}" Stretch="Uniform"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                
+                                <!-- 十字辅助线 Canvas -->
+                                <Canvas x:Name="CrosshairCanvas" IsHitTestVisible="False">
+                                    <!-- 水平线 -->
+                                    <Line x:Name="CrosshairH" Stroke="#80FF0000" StrokeThickness="1" 
+                                          Canvas.Left="0" Canvas.Top="0"/>
+                                    <!-- 垂直线 -->
+                                    <Line x:Name="CrosshairV" Stroke="#80FF0000" StrokeThickness="1"
+                                          Canvas.Left="0" Canvas.Top="0"/>
+                                </Canvas>
+
+                                <!-- 右上角工具栏 -->
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                            Margin="0,8,8,0">
+                                    <!-- 十字线按钮 + 下拉 -->
+                                    <Grid>
+                                        <Button x:Name="BtnCrosshair" Click="BtnCrosshair_Click"
+                                                Style="{StaticResource SecondaryButton}"
+                                                Width="32" Height="32" Padding="0"
+                                                ToolTip="十字辅助线">
+                                            <TextBlock Text="＋" FontSize="18" FontWeight="Bold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                        </Button>
+                                        <!-- 右下角三角下拉指示 -->
+                                        <Border Background="{StaticResource AccentBrush}" 
+                                                CornerRadius="2" Padding="2,1"
+                                                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                Margin="0,0,0,0" Cursor="Hand"
+                                                MouseLeftButtonDown="CrosshairDropdown_Click">
+                                            <Path Data="M 0,0 L 6,0 L 0,6 Z" Fill="White" Width="6" Height="6"/>
+                                        </Border>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- 十字线模式下拉菜单 -->
+                                <Popup x:Name="CrosshairPopup" PlacementTarget="{Binding ElementName=BtnCrosshair}"
+                                       Placement="Bottom" AllowsTransparency="True" StaysOpen="False">
+                                    <Border Background="{StaticResource CardBrush}" 
+                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                            Padding="4" Margin="4">
+                                        <StackPanel>
+                                            <RadioButton x:Name="RadModeViewport" Content="十字线居中视口"
+                                                         IsChecked="{Binding IsCrosshairViewportMode}"
+                                                         Style="{StaticResource NavItemStyle}"
+                                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                                         Margin="0,2"/>
+                                            <RadioButton x:Name="RadModeImage" Content="十字线居中图片"
+                                                         IsChecked="{Binding IsCrosshairImageMode}"
+                                                         Style="{StaticResource NavItemStyle}"
+                                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                                         Margin="0,2"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Popup>
+                            </Grid>
                     </Border>
                 </Grid>
 
@@ -159,6 +219,10 @@
             <!-- 用户坐标直接读取界面 -->
             <views:UserCoordinateView Grid.Column="1" DataContext="{Binding UserCoordVM}"
                                       Visibility="{Binding DataContext.IsUserCoordView, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
+
+            <!-- 机器人控制界面 -->
+            <views:RobotControlView Grid.Column="1" DataContext="{Binding RobotControlVM}"
+                                    Visibility="{Binding DataContext.IsRobotControlView, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"/>
         </Grid>
     </Grid>
 </Window>
