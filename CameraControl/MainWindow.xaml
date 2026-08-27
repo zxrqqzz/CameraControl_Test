@@ -194,8 +194,10 @@
                     </StackPanel>
 
                     <ListBox Grid.Row="1"
+                             x:Name="LogListBox"
                              ItemsSource="{Binding LogVM.Logs}"
                              Height="100"
+                             SelectionMode="Extended"
                              Style="{StaticResource ListBoxStyle}"
                              FontFamily="Consolas" FontSize="12">
                         <ListBox.ItemTemplate>
@@ -204,6 +206,19 @@
                                            Foreground="{StaticResource TextSecondaryBrush}"/>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
+                        <ListBox.CommandBindings>
+                            <CommandBinding Command="{x:Static ApplicationCommands.Copy}" Executed="OnCopyLogs" CanExecute="OnCanExecuteCopyLogs"/>
+                        </ListBox.CommandBindings>
+                        <ListBox.InputBindings>
+                            <KeyBinding Key="C" Modifiers="Control" Command="{x:Static ApplicationCommands.Copy}"/>
+                        </ListBox.InputBindings>
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="复制" Command="{x:Static ApplicationCommands.Copy}" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                <Separator/>
+                                <MenuItem Header="全选" Command="{x:Static ApplicationCommands.SelectAll}" CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
                     </ListBox>
                 </Grid>
             </Grid>

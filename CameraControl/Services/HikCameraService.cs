@@ -25,6 +25,7 @@ namespace CameraControl.Services
         private IDevice? _camera;
         private bool _sdkInitialized;
         private bool _callbackRegistered;
+        private TaskCompletionSource<BitmapSource>? _captureTcs;
 
         public bool IsConnected => _camera != null && _camera.IsConnected;
 
@@ -233,7 +234,8 @@ namespace CameraControl.Services
         }
 
         /// <summary>
-        /// 单次采集: 未取流则先以连续模式开流, 同步取一帧显示后停止取流恢复原状态
+        /// 单次采集: 未取流则先以连续模式开流, 同步等待回调送来一帧后停止取流恢复原状态
+        /// (不能与 AcquireOneFrame 的 GetImageBuffer 混用, 因为回调会先消费缓存帧导致取帧超时)
         /// </summary>
         public void CaptureOnce()
         {
@@ -250,14 +252,39 @@ namespace CameraControl.Services
                 startedHere = true;
             }
 
-            var frame = AcquireOneFrame(GrabTimeoutMs);
+            var frame = WaitForFrameViaCallback(GrabTimeoutMs);
             if (frame != null)
-                ImageReceived?.Invoke(frame);
+            {
+                // 帧已由回调通过 ImageReceived 送出
+                Log("单次采集完成");
+            }
             else
+            {
                 Log("单次采集未获取到图像");
+            }
 
             if (startedHere)
                 StopGrabbing();
+        }
+
+        /// <summary>
+        /// 同步阻塞等待回调送出一帧(通过 TaskCompletionSource 实现),
+        /// 返回的 BitmapSource 已由回调通过 ImageReceived 送出, 此处仅用于判断是否成功。
+        /// </summary>
+        private BitmapSource? WaitForFrameViaCallback(uint timeoutMs)
+        {
+            var tcs = new TaskCompletionSource<BitmapSource>();
+            _captureTcs = tcs;
+            try
+            {
+                if (tcs.Task.Wait(TimeSpan.FromMilliseconds(timeoutMs)))
+                    return tcs.Task.Result;
+            }
+            finally
+            {
+                _captureTcs = null;
+            }
+            return null;
         }
 
         /// <summary>
@@ -341,6 +368,7 @@ namespace CameraControl.Services
                 bitmap.Freeze();
 
                 ImageReceived?.Invoke(bitmap);
+                _captureTcs?.TrySetResult(bitmap);
             }
             catch (Exception ex)
             {

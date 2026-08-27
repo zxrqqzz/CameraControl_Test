@@ -124,6 +124,21 @@ namespace CameraControl
             UpdateCrosshair();
         }
 
+        /// <summary>日志复制 - 将选中项拼接写入剪贴板</summary>
+        private void OnCopyLogs(object sender, ExecutedRoutedEventArgs e)
+        {
+            if (LogListBox == null) return;
+            var selected = LogListBox.SelectedItems?.Cast<string>().ToArray();
+            if (selected == null || selected.Length == 0) return;
+            Clipboard.SetText(string.Join(Environment.NewLine, selected));
+        }
+
+        /// <summary>仅当存在选中项时才允许复制</summary>
+        private void OnCanExecuteCopyLogs(object sender, CanExecuteRoutedEventArgs e)
+        {
+            e.CanExecute = LogListBox != null && LogListBox.SelectedItems?.Count > 0;
+        }
+
         protected override void OnClosed(EventArgs e)
         {
             base.OnClosed(e);
