@@ -124,6 +124,9 @@ namespace CameraControl
             UpdateCrosshair();
         }
 
+        private bool _isPanning;
+        private Point _panLastPos;
+
         /// <summary>日志复制 - 将选中项拼接写入剪贴板</summary>
         private void OnCopyLogs(object sender, ExecutedRoutedEventArgs e)
         {
@@ -137,6 +140,65 @@ namespace CameraControl
         private void OnCanExecuteCopyLogs(object sender, CanExecuteRoutedEventArgs e)
         {
             e.CanExecute = LogListBox != null && LogListBox.SelectedItems?.Count > 0;
+        }
+
+        private const double ZoomMin = 0.1;
+        private const double ZoomMax = 20.0;
+        private const double ZoomStep = 1.15;
+
+        /// <summary>滚轮缩放 - 以鼠标位置为中心放大缩小</summary>
+        private void ImageContainer_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            var scale = ZoomScale.ScaleX;
+            double factor = e.Delta > 0 ? ZoomStep : 1.0 / ZoomStep;
+            double newScale = Math.Clamp(scale * factor, ZoomMin, ZoomMax);
+            if (Math.Abs(newScale - scale) < 0.0001) return;
+
+            double ratio = newScale / scale;
+            var pos = e.GetPosition(ImageContainer);
+            double tx = pos.X - (pos.X - ZoomTranslate.X) * ratio;
+            double ty = pos.Y - (pos.Y - ZoomTranslate.Y) * ratio;
+
+            ZoomScale.ScaleX = newScale;
+            ZoomScale.ScaleY = newScale;
+            ZoomTranslate.X = tx;
+            ZoomTranslate.Y = ty;
+            e.Handled = true;
+        }
+
+        /// <summary>1:1 还原 - 缩放与平移复位</summary>
+        private void BtnResetZoom_Click(object sender, RoutedEventArgs e)
+        {
+            ZoomScale.ScaleX = 1;
+            ZoomScale.ScaleY = 1;
+            ZoomTranslate.X = 0;
+            ZoomTranslate.Y = 0;
+        }
+
+        /// <summary>开始平移(按住左键拖动查看放大后的图像)</summary>
+        private void Image_PanStart(object sender, MouseButtonEventArgs e)
+        {
+            _isPanning = true;
+            _panLastPos = e.GetPosition(ImageContainer);
+            DisplayImage.CaptureMouse();
+            e.Handled = true;
+        }
+
+        /// <summary>平移过程中</summary>
+        private void Image_PanMove(object sender, MouseEventArgs e)
+        {
+            if (!_isPanning) return;
+            var pos = e.GetPosition(ImageContainer);
+            ZoomTranslate.X += pos.X - _panLastPos.X;
+            ZoomTranslate.Y += pos.Y - _panLastPos.Y;
+            _panLastPos = pos;
+        }
+
+        /// <summary>结束平移</summary>
+        private void Image_PanEnd(object sender, MouseButtonEventArgs e)
+        {
+            _isPanning = false;
+            DisplayImage.ReleaseMouseCapture();
         }
 
         protected override void OnClosed(EventArgs e)
