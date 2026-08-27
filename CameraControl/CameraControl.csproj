@@ -18,15 +18,15 @@
 
   <ItemGroup>
     <Reference Include="MvCameraControl.Net">
-      <HintPath>..\..\..\..\PLC\HikRobot\netstandard2.0\MvCameraControl.Net.dll</HintPath>
+      <HintPath>SDK\MvCameraControl.Net.dll</HintPath>
     </Reference>
     <Reference Include="YMConnect_CS">
-      <HintPath>..\..\..\..\App\YMConnectDotNet_1_1_10_Windows\YMConnect_CS.dll</HintPath>
+      <HintPath>SDK\YMConnect_CS.dll</HintPath>
     </Reference>
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\..\..\App\YMConnectDotNet_1_1_10_Windows\YMConnect.dll">
+    <None Include="SDK\YMConnect.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
