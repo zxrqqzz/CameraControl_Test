@@ -48,6 +48,7 @@
 
         <!-- 顶部菜单栏 -->
         <Menu Grid.Row="0" Background="{StaticResource DarkSurfaceBrush}" Foreground="White" Padding="0">
+            <MenuItem Header="设备管理" Click="OnDeviceManagementClick"/>
             <MenuItem Header="通讯管理" Click="OnCommunicationClick"/>
             <MenuItem Header="全局触发" Click="OnGlobalTriggerClick"/>
         </Menu>
@@ -110,6 +111,10 @@
                     <Button Content="连续采集" Style="{StaticResource SecondaryButton}"
                             Height="36" Width="100"
                             Command="{Binding ContinuousCaptureCommand}"/>
+                    <Button Content="参数设置" Style="{StaticResource PrimaryButton}"
+                            Height="36" Width="100"
+                            Margin="8,0,0,0"
+                            Click="OnParameterSettingsClick"/>
                 </StackPanel>
 
                 <!-- 图像显示区域 -->

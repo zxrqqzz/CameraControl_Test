@@ -31,6 +31,9 @@ namespace CameraControl.Services
 
         public bool IsGrabbing { get; private set; }
 
+        /// <summary>SDK 参数接口(供参数设置界面动态读写属性)，未连接时为 null</summary>
+        public IParameters? Parameters => _camera?.Parameters;
+
         public event Action<BitmapSource>? ImageReceived;
 
         public event Action<string>? LogMessage;

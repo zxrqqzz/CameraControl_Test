@@ -30,6 +30,9 @@ namespace CameraControl
         // 全局触发服务
         public static GlobalTriggerService GlobalTrigger { get; }
 
+        // 设备管理
+        public static DeviceManagementViewModel DeviceManagement { get; } = new DeviceManagementViewModel();
+
         // 应用设置自动保存/加载
         public static AppSettingsService Settings { get; }
 

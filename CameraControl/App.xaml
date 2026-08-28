@@ -74,12 +74,62 @@
                 <Setter Property="Padding" Value="8,6"/>
             </Style>
 
+            <!-- 下拉框 -->
+            <Style x:Key="ComboStyle" TargetType="ComboBox">
+                <Setter Property="Background" Value="{StaticResource CardBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Padding" Value="4,4"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+            </Style>
+
             <!-- 列表框 -->
             <Style x:Key="ListBoxStyle" TargetType="ListBox">
                 <Setter Property="Background" Value="{StaticResource CardBrush}"/>
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
+            </Style>
+
+            <!-- 反向Bool转Visibility -->
+            <local:InverseBoolToVisConverter x:Key="InverseBoolToVis"/>
+
+            <!-- Bool转Visibility (全局可用) -->
+            <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+            <!-- 字符串相等转换器 -->
+            <local:StringEqualsConverter x:Key="StringEqualsConverter"/>
+
+            <!-- 布尔取反转换器 -->
+            <local:InverseBoolConverter x:Key="InverseBoolConverter"/>
+
+            <!-- 窗口内侧边栏导航项样式 -->
+            <Style x:Key="WindowNavItemStyle" TargetType="RadioButton">
+                <Setter Property="Foreground" Value="#94A3B8"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Margin" Value="4,2"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="bd" Background="Transparent" Padding="10,8" CornerRadius="4">
+                                <ContentPresenter/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="{StaticResource DarkSurfaceHoverBrush}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="{StaticResource AccentBrush}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
 
         </ResourceDictionary>

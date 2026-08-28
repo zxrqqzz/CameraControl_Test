@@ -20,6 +20,9 @@ namespace CameraControl.ViewModels
         // 相机采集服务(SDK 逻辑全部封装在 Services 层)
         private readonly ICameraService _cameraService = new HikCameraService();
 
+        /// <summary>相机服务实例(供参数设置界面访问 SDK 参数)</summary>
+        public HikCameraService CameraService => (HikCameraService)_cameraService;
+
         // 命令绑定
         public ICommand SingleCaptureCommand { get; }
         public ICommand ContinuousCaptureCommand { get; }

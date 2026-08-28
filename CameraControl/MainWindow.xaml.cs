@@ -20,6 +20,7 @@ namespace CameraControl
         private MainViewModel _vm;
         private Views.CommunicationWindow? _commWindow;
         private Views.GlobalTriggerWindow? _triggerWindow;
+        private Views.DeviceManagementWindow? _deviceWindow;
 
         public MainWindow()
         {
@@ -33,6 +34,25 @@ namespace CameraControl
                 if (e.PropertyName == nameof(MainViewModel.CurrentImage))
                     UpdateCrosshair();
             };
+        }
+
+        /// <summary>打开设备管理弹窗</summary>
+        private void OnDeviceManagementClick(object sender, RoutedEventArgs e)
+        {
+            if (_deviceWindow == null)
+            {
+                _deviceWindow = new Views.DeviceManagementWindow { Owner = this };
+                _deviceWindow.Closed += (_, _) => _deviceWindow = null;
+            }
+            _deviceWindow.Show();
+            _deviceWindow.Activate();
+        }
+
+        /// <summary>打开相机参数设置弹窗</summary>
+        private void OnParameterSettingsClick(object sender, RoutedEventArgs e)
+        {
+            var paramWindow = new Views.CameraParameterWindow(_vm.CameraService) { Owner = this };
+            paramWindow.Show();
         }
 
         /// <summary>打开通讯管理弹窗</summary>
