@@ -1,11 +1,19 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!--
+      带 Windows SDK 版本的目标框架：UVC 采集走 Windows.Media.Capture / MediaFrameReader，
+      需要 WinRT 投影（Microsoft.Windows.SDK.NET.Ref）。
+      去掉中间的版本号会退回 net10.0-windows，届时 Windows.* 命名空间不可用。
+    -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- 读 SoftwareBitmap 的像素缓冲需要 IMemoryBufferByteAccess 指针访问 -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

@@ -4,42 +4,81 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="设备管理" Height="560" Width="800"
+        Title="设备管理" Height="620" Width="900"
+        MinHeight="500" MinWidth="760"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
         FontSize="13"
         Background="{StaticResource BackgroundBrush}">
     <Grid Margin="12">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="290"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- 左侧: 设备分类 + 设备列表 -->
+        <!-- ══════════════ 左侧: 检索 + 分类 + 设备列表 ══════════════ -->
         <Border Grid.Column="0" Background="{StaticResource CardBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="12">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- 标题行: 设备列表 + 添加按钮 -->
-                <Grid Grid.Row="0" Margin="0,0,0,12">
+                <!-- 标题行: 设备列表 + 扫描 + 添加 -->
+                <Grid Grid.Row="0" Margin="0,0,0,10">
                     <TextBlock Text="设备列表" FontWeight="SemiBold" FontSize="16"
                                VerticalAlignment="Center"
                                Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <Button Content="+" Width="26" Height="26" Padding="0"
-                            HorizontalAlignment="Right"
-                            Style="{StaticResource PrimaryButton}"
-                            FontSize="18" FontWeight="Bold"
-                            ToolTip="添加设备"
-                            Click="OnAddDeviceClick"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="扫描" Height="26" Padding="10,0"
+                                Style="{StaticResource SecondaryButton}"
+                                FontSize="12"
+                                ToolTip="自动发现本机连接的相机（海康SDK / UVC摄像头 / 局域网检测）"
+                                Click="OnScanClick"/>
+                        <Button Content="+" Width="26" Height="26" Padding="0" Margin="8,0,0,0"
+                                Style="{StaticResource PrimaryButton}"
+                                FontSize="18" FontWeight="Bold"
+                                ToolTip="手工添加设备"
+                                Click="OnAddDeviceClick"/>
+                    </StackPanel>
                 </Grid>
 
-                <!-- 分类标签 -->
-                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+                <!-- 检索框: 名称 / 厂商 / 型号 / IP / 序列号 / 来源 -->
+                <Grid Grid.Row="1" Margin="0,0,0,10">
+                    <TextBox x:Name="TxtSearch" Height="30" Padding="8,6,26,6"
+                             Style="{StaticResource InputBox}"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+                    <TextBlock x:Name="SearchPlaceholder" Text="按厂商 / 型号 / IP / 序列号检索…"
+                               FontSize="12" Margin="10,0,0,0"
+                               VerticalAlignment="Center" IsHitTestVisible="False"
+                               Foreground="{StaticResource TextSecondaryBrush}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Text, ElementName=TxtSearch}" Value="">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <Button Content="×" Width="22" Height="22" Padding="0" Margin="0,0,3,0"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Style="{StaticResource SecondaryButton}"
+                            FontSize="12"
+                            ToolTip="清除检索"
+                            Command="{Binding ClearSearchCommand}"/>
+                </Grid>
+
+                <!-- 分类标签: 全部 / 相机 / 光源 -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+                    <RadioButton Content="全部" GroupName="DeviceType" IsChecked="{Binding ShowAllList}"
+                                 Foreground="{StaticResource TextPrimaryBrush}" Cursor="Hand"
+                                 FontSize="13" Margin="0,0,12,0"/>
                     <RadioButton Content="相机" GroupName="DeviceType" IsChecked="{Binding ShowCameraList}"
                                  Foreground="{StaticResource TextPrimaryBrush}" Cursor="Hand"
                                  FontSize="13" Margin="0,0,12,0"/>
@@ -49,7 +88,7 @@
                 </StackPanel>
 
                 <!-- 设备列表 -->
-                <ListBox Grid.Row="2" ItemsSource="{Binding FilteredDevices}"
+                <ListBox Grid.Row="3" ItemsSource="{Binding FilteredDevices}"
                          SelectedItem="{Binding SelectedDevice}"
                          Style="{StaticResource ListBoxStyle}">
                     <ListBox.ItemTemplate>
@@ -59,13 +98,19 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding Display}" TextWrapping="Wrap" Padding="10,10"
-                                           Foreground="{StaticResource TextPrimaryBrush}" FontSize="12"
-                                           VerticalAlignment="Center">
-                                    <TextBlock.InputBindings>
-                                        <MouseBinding Gesture="LeftDoubleClick" Command="{Binding DataContext.RenameDeviceCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"/>
-                                    </TextBlock.InputBindings>
-                                </TextBlock>
+                                <StackPanel Grid.Column="0" Margin="10,8,0,8">
+                                    <TextBlock Text="{Binding Display}" TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextPrimaryBrush}" FontSize="12">
+                                        <TextBlock.InputBindings>
+                                            <MouseBinding Gesture="LeftDoubleClick"
+                                                          Command="{Binding DataContext.RenameDeviceCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                          CommandParameter="{Binding}"/>
+                                        </TextBlock.InputBindings>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding SubtitleText}" TextWrapping="Wrap"
+                                               FontSize="10" Margin="0,2,0,0"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
                                 <Button Grid.Column="1" Content="×" Width="22" Height="22" Padding="0"
                                         Margin="0,0,8,0" VerticalAlignment="Center"
                                         Style="{StaticResource SecondaryButton}"
@@ -77,12 +122,12 @@
                 </ListBox>
 
                 <!-- 底部提示 -->
-                <TextBlock Grid.Row="3" Text="双击设备可重命名" FontSize="11" Margin="0,8,0,0"
+                <TextBlock Grid.Row="4" Text="双击设备可重命名" FontSize="11" Margin="0,8,0,0"
                            Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
             </Grid>
         </Border>
 
-        <!-- 右侧: 设备参数编辑 -->
+        <!-- ══════════════ 右侧: 设备参数 ══════════════ -->
         <Grid Grid.Column="1" Margin="12,0,0,0">
             <!-- 未选中提示 -->
             <TextBlock Text="请从左侧选择一个设备查看参数"
@@ -91,23 +136,87 @@
                        Visibility="{Binding IsDeviceSelected, Converter={StaticResource InverseBoolToVis}}"/>
 
             <!-- 相机参数 -->
-            <StackPanel Visibility="{Binding IsCameraSelected, Converter={StaticResource BoolToVis}}"
-                        Margin="20">
-                <TextBlock Text="相机参数" FontWeight="SemiBold" FontSize="18" Margin="0,0,0,20"
-                           Foreground="{StaticResource TextPrimaryBrush}"/>
-                <TextBlock Text="厂商:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                <TextBox Text="{Binding CameraVendor, UpdateSourceTrigger=PropertyChanged}"
-                         Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,14"/>
-                <TextBlock Text="型号:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                <TextBox Text="{Binding CameraModel, UpdateSourceTrigger=PropertyChanged}"
-                         Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,14"/>
-                <TextBlock Text="序列号:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                <TextBox Text="{Binding CameraSerialNumber, UpdateSourceTrigger=PropertyChanged}"
-                         Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,14"/>
-                <TextBlock Text="IP地址:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                <TextBox Text="{Binding CameraIp, UpdateSourceTrigger=PropertyChanged}"
-                         Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,20"/>
-            </StackPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          Visibility="{Binding IsCameraSelected, Converter={StaticResource BoolToVis}}">
+                <StackPanel Margin="20">
+                    <TextBlock Text="相机参数" FontWeight="SemiBold" FontSize="18" Margin="0,0,0,16"
+                               Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                    <!-- 仅检测到的局域网设备提示 -->
+                    <Border Background="#FFFBEB" BorderBrush="#FDE68A" BorderThickness="1"
+                            Padding="10,8" CornerRadius="4" Margin="0,0,0,14"
+                            Visibility="{Binding CameraIsDetectedOnly, Converter={StaticResource BoolToVis}}">
+                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#92400E"
+                                   Text="这个设备是局域网扫描检测到的，只做登记。本程序不会连接它、不会登录、也不会获取图像。"/>
+                    </Border>
+
+                    <TextBlock Text="厂商:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                    <TextBox Text="{Binding CameraVendor, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,12"/>
+
+                    <TextBlock Text="型号:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                    <TextBox Text="{Binding CameraModel, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,12"/>
+
+                    <TextBlock Text="序列号:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                    <TextBox Text="{Binding CameraSerialNumber, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,12"/>
+
+                    <TextBlock Text="IP地址:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                    <TextBox Text="{Binding CameraIp, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,16"/>
+
+                    <!-- 扫描得到的只读信息 -->
+                    <Border Background="{StaticResource MutedBrush}" BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" Padding="12" CornerRadius="4">
+                        <StackPanel>
+                            <TextBlock Text="扫描信息（只读）" FontWeight="SemiBold" FontSize="12"
+                                       Margin="0,0,0,8"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                            <TextBlock Text="来源:" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Text="{Binding CameraSourceText}" FontSize="12" Margin="0,2,0,8"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                            <TextBlock Text="接入方式:" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Text="{Binding CameraInterfaceText}" FontSize="12" Margin="0,2,0,8"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                            <TextBlock Text="MAC 地址:" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Text="{Binding CameraMacText}" FontSize="12" Margin="0,2,0,0"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 隐私保护（只对 UVC / 笔记本自带摄像头显示） -->
+                    <Border Background="#F0F9FF" BorderBrush="#BAE6FD" BorderThickness="1"
+                            Padding="12" CornerRadius="4" Margin="0,12,0,0"
+                            Visibility="{Binding ShowPrivacySection, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="🔒 图像隐私" FontWeight="SemiBold" FontSize="12"
+                                       Margin="0,0,0,6"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                            <TextBlock Text="{Binding CameraPrivacyHint}"
+                                       TextWrapping="Wrap" FontSize="11" Margin="0,0,0,8"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                            <CheckBox Content="允许把该设备的图像保存到磁盘"
+                                      IsChecked="{Binding CameraAllowImagePersist, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      FontSize="12" VerticalContentAlignment="Center"/>
+
+                            <TextBlock Text="默认关闭。开启后本程序可能把画面写到磁盘，关闭时不再保证彻底消失。"
+                                       TextWrapping="Wrap" FontSize="10" Margin="22,4,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
 
             <!-- 光源参数 -->
             <StackPanel Visibility="{Binding IsLightSourceSelected, Converter={StaticResource BoolToVis}}"

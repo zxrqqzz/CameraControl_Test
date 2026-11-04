@@ -1,4 +1,5 @@
-﻿using MvCameraControl;
+using CameraControl.Models;
+using MvCameraControl;
 using System;
 using System.Collections.Generic;
 using System.Windows.Media;
@@ -9,13 +10,12 @@ namespace CameraControl.Services
     /// <summary>
     /// 海康相机采集服务: 设备枚举/连接、取流控制、软触发、图像回调与像素格式转换全部封装于此，
     /// 界面层(MainViewModel)只做命令转发与结果显示。
+    ///
+    /// 连接哪个相机由设备管理里选中的 <see cref="CameraDevice"/> 决定，
+    /// 通过 SerialNumber / DevicePath / Ip 在当前枚举结果里找回设备，不再有硬编码 IP。
     /// </summary>
     public class HikCameraService : ICameraService
     {
-        // 相机IP与PC网卡IP
-        private const string CameraIp = "192.168.1.10";
-        private const string NetExportIp = "192.168.1.100";
-
         // 同步取一帧的默认等待时间(毫秒)
         private const uint GrabTimeoutMs = 1000;
 
@@ -23,13 +23,19 @@ namespace CameraControl.Services
         private const uint ImageNodeNum = 5;
 
         private IDevice? _camera;
-        private bool _sdkInitialized;
+        private bool _sdkAcquired;
         private bool _callbackRegistered;
         private TaskCompletionSource<BitmapSource>? _captureTcs;
+
+        /// <summary>当前连接的目标设备(来自设备管理)</summary>
+        public CameraDevice? TargetDevice { get; private set; }
 
         public bool IsConnected => _camera != null && _camera.IsConnected;
 
         public bool IsGrabbing { get; private set; }
+
+        /// <summary>海康通道具备完整取流能力</summary>
+        public bool SupportsStreaming => true;
 
         /// <summary>SDK 参数接口(供参数设置界面动态读写属性)，未连接时为 null</summary>
         public IParameters? Parameters => _camera?.Parameters;
@@ -39,62 +45,85 @@ namespace CameraControl.Services
         public event Action<string>? LogMessage;
 
         /// <summary>
-        /// SDK 初始化 + 枚举设备 + 连接
+        /// SDK 初始化 + 枚举设备。不再自动连接任何相机，
+        /// 连接动作由界面按"设备管理里选中的相机"显式触发。
         /// </summary>
         public void Initialize()
         {
-            if (!_sdkInitialized)
+            if (!_sdkAcquired)
             {
-                int ret = SDKSystem.Initialize();
-                _sdkInitialized = ret == MvError.MV_OK;
-                Log(_sdkInitialized ? "SDK 初始化完成" : $"SDK 初始化失败: 0x{ret:X}");
+                int ret = HikSdkRuntime.Acquire();
+                _sdkAcquired = ret == MvError.MV_OK;
+                Log(_sdkAcquired ? "SDK 初始化完成" : $"SDK 初始化失败: 0x{ret:X}");
             }
 
-            EnumDevices();
-            Connect();
+            if (!_sdkAcquired) return;
+
+            List<HikDeviceEnumerator.Entry> entries = HikDeviceEnumerator.Enumerate(Log);
+            Log($"枚举设备成功，设备数量: {entries.Count}");
+            foreach (HikDeviceEnumerator.Entry entry in entries)
+                Log($"型号: {entry.Model}, 厂商: {entry.Vendor}, 序列号: {entry.SerialNumber}, 接口: {entry.InterfaceText}");
         }
 
-        /// <summary>
-        /// 枚举设备，获取设备信息
-        /// </summary>
-        private void EnumDevices()
-        {
-            List<IDeviceInfo> devInfoList;
-            int ret = DeviceEnumerator.EnumDevicesEx(
-                 DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice, "", out devInfoList);
-            if (ret == MvError.MV_OK)
-            {
-                Log($"枚举设备成功，设备数量: {devInfoList.Count}");
-                foreach (var dev in devInfoList)
-                    Log($"型号: {dev.ModelName}, 厂商: {dev.ManufacturerName}, 序列号: {dev.SerialNumber}");
-            }
-            else
-            {
-                Log($"枚举设备失败: 0x{ret:X}");
-            }
-        }
+        /// <summary>连接相机(取当前枚举到的第一个设备)</summary>
+        public bool Connect() => Connect(null);
 
         /// <summary>
-        /// 连接相机(创建/打开设备，可反复调用)
+        /// 按设备列表中的相机连接。
         /// </summary>
-        public bool Connect()
+        public bool Connect(CameraDevice? device)
         {
             try
             {
+                if (!_sdkAcquired)
+                {
+                    Log("SDK 尚未初始化，无法连接相机");
+                    return false;
+                }
+
+                if (device != null && device.IsDetectedOnly)
+                {
+                    Log($"{device.Name} 只是局域网检测结果，本程序不会主动连接它");
+                    return false;
+                }
+
+                List<HikDeviceEnumerator.Entry> entries = HikDeviceEnumerator.Enumerate(Log);
+                HikDeviceEnumerator.Entry? entry = device != null
+                    ? HikDeviceEnumerator.Match(entries, device)
+                    : entries.Count > 0 ? entries[0] : null;
+
+                if (entry == null)
+                {
+                    Log(device != null
+                        ? $"未找到设备 {device.Display}，请确认相机已上电并处于同一网段"
+                        : "没有枚举到任何海康相机");
+                    return false;
+                }
+
+                // 目标变了就先把旧设备句柄释放掉，避免一直占着上一个相机
+                if (_camera != null && TargetDevice != null && !ReferenceEquals(TargetDevice, device))
+                {
+                    CloseDevice();
+                }
+
                 if (_camera == null)
                 {
-                    _camera = DeviceFactory.CreateDeviceByIp(CameraIp, NetExportIp);
-                    Log($"已创建相机对象: {_camera}");
+                    _camera = DeviceFactory.CreateDevice(entry.Info);
+                    TargetDevice = device;
+                    _callbackRegistered = false;
+                    Log($"已创建设备对象: {entry.Name} ({entry.InterfaceText})");
                 }
 
                 int ret = _camera.Open();
                 if (ret != MvError.MV_OK)
                 {
                     Log($"打开相机失败: 0x{ret:X}");
+                    CloseDevice();
                     return false;
                 }
 
-                Log($"相机 {_camera} 连接成功");
+                Log($"相机 {entry.Name} 连接成功");
+                if (device != null) device.IsConnected = true;
                 return true;
             }
             catch (Exception e)
@@ -102,6 +131,29 @@ namespace CameraControl.Services
                 Log($"打开相机失败: {e.Message}");
                 return false;
             }
+        }
+
+        /// <summary>关闭设备句柄并清空目标设备</summary>
+        private void CloseDevice()
+        {
+            if (_camera == null) return;
+
+            try
+            {
+                if (_callbackRegistered)
+                {
+                    _camera.StreamGrabber.FrameGrabedEvent -= OnFrameGrabed;
+                    _callbackRegistered = false;
+                }
+            }
+            catch { }
+
+            try { _camera.Close(); } catch { }
+            try { _camera.Dispose(); } catch { }
+
+            if (TargetDevice != null) TargetDevice.IsConnected = false;
+            _camera = null;
+            TargetDevice = null;
         }
 
         /// <summary>
@@ -120,6 +172,8 @@ namespace CameraControl.Services
                     Log($"关闭相机返回: 0x{ret:X}");
                 else
                     Log("相机已断开");
+
+                if (TargetDevice != null) TargetDevice.IsConnected = false;
             }
             catch (Exception e)
             {
@@ -443,18 +497,12 @@ namespace CameraControl.Services
         public void Dispose()
         {
             StopGrabbing();
-            if (_callbackRegistered && _camera != null)
-            {
-                try { _camera.StreamGrabber.FrameGrabedEvent -= OnFrameGrabed; } catch { }
-                _callbackRegistered = false;
-            }
-            try { _camera?.Dispose(); } catch { }
-            _camera = null;
+            CloseDevice();
 
-            if (_sdkInitialized)
+            if (_sdkAcquired)
             {
-                SDKSystem.Finalize();
-                _sdkInitialized = false;
+                HikSdkRuntime.Release();
+                _sdkAcquired = false;
             }
         }
     }

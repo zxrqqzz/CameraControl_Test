@@ -1,10 +1,15 @@
-﻿using System;
+using CameraControl.Models;
+using System;
 using System.Windows.Media.Imaging;
 
 namespace CameraControl.Services
 {
     /// <summary>
-    /// 相机采集服务接口(封装海康 MVS SDK)
+    /// 相机采集服务接口(一台相机一条采集通道)。
+    ///
+    /// 目前有两个实现:
+    /// - <see cref="HikCameraService"/>: 海康 MVS SDK(GigE Vision / USB3 Vision), 功能完整。
+    /// - <see cref="UvcCameraService"/>: UVC / 笔记本摄像头, 采集通道预留，当前只做设备记录。
     /// </summary>
     public interface ICameraService : IDisposable
     {
@@ -14,11 +19,20 @@ namespace CameraControl.Services
         /// <summary>是否正在取流</summary>
         bool IsGrabbing { get; }
 
-        /// <summary>初始化(SDK 初始化、枚举设备并连接)</summary>
+        /// <summary>该通道是否已经具备取流能力(未实现的通道返回 false)</summary>
+        bool SupportsStreaming { get; }
+
+        /// <summary>初始化(SDK 初始化、枚举设备)</summary>
         void Initialize();
 
         /// <summary>连接相机(创建/打开设备，可反复调用)</summary>
         bool Connect();
+
+        /// <summary>
+        /// 按设备列表中的相机连接(device 为 null 时等价于 <see cref="Connect()"/>)。
+        /// 实现方需要根据 SerialNumber / DevicePath / Ip 在自己的枚举结果里找回设备。
+        /// </summary>
+        bool Connect(CameraDevice? device);
 
         /// <summary>断开相机(停止取流并关闭设备，可再次连接)</summary>
         void Disconnect();

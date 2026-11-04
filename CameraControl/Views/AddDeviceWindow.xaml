@@ -26,6 +26,9 @@
         <TextBlock x:Name="LblType" Text="型号:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
         <TextBox x:Name="TxtModel" Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,14"/>
 
+        <TextBlock x:Name="LblSerial" Text="序列号 (可选):" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+        <TextBox x:Name="TxtSerial" Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,14"/>
+
         <TextBlock x:Name="LblIp" Text="IP地址:" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
         <TextBox x:Name="TxtIp" Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,20"/>
 

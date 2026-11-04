@@ -1,7 +1,9 @@
-﻿using CameraControl.Services;
+using CameraControl.Models;
+using CameraControl.Services;
 using GalaSoft.MvvmLight.Command;
 using System;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
@@ -17,11 +19,17 @@ namespace CameraControl.ViewModels
         /// </summary>
         public LogViewModel LogVM { get; } = App.LogVM;
 
-        // 相机采集服务(SDK 逻辑全部封装在 Services 层)
-        private readonly ICameraService _cameraService = new HikCameraService();
+        // 当前生效的采集通道(按设备管理的选中相机切换: 海康 SDK / UVC 预留通道)
+        private ICameraService? _cameraService;
 
-        /// <summary>相机服务实例(供参数设置界面访问 SDK 参数)</summary>
-        public HikCameraService CameraService => (HikCameraService)_cameraService;
+        // 两条采集通道(按需创建)
+        private HikCameraService? _hikService;
+        private UvcCameraService? _uvcService;
+
+        /// <summary>
+        /// 海康相机服务实例(供参数设置界面访问 SDK 参数)，未创建或未连接时为 null
+        /// </summary>
+        public HikCameraService? HikCamera => _hikService;
 
         // 命令绑定
         public ICommand SingleCaptureCommand { get; }
@@ -109,10 +117,6 @@ namespace CameraControl.ViewModels
 
         public MainViewModel()
         {
-            // 订阅服务日志与图像事件
-            _cameraService.LogMessage += msg => LogVM.AddLog(msg);
-            _cameraService.ImageReceived += OnImageReceived;
-
             SingleCaptureCommand = new RelayCommand(SingleCapture);
             ContinuousCaptureCommand = new RelayCommand(ContinuousCapture);
             ConnectCameraCommand = new RelayCommand(ConnectCamera);
@@ -128,10 +132,64 @@ namespace CameraControl.ViewModels
             UserCoordVM = App.UserCoordinate;
             RobotControlVM = new RobotControlViewModel(new RobotService());
 
-            // 枚举并连接相机
-            _cameraService.Initialize();
-            UpdateConnectionState();
+            // 海康 SDK 初始化 + 枚举(不再自动连到硬编码 IP)
+            EnsureHikService();
+            _hikService!.Initialize();
+            _cameraService = _hikService;
+
+            // 设备管理里已经有可连接的相机时，启动顺手连上第一台
+            if (FindConnectableTarget() != null)
+                ConnectCamera();
+            else
+                UpdateConnectionState();
         }
+
+        // ────────────────────────────────────────────────────────────────
+        // 采集通道管理
+        // ────────────────────────────────────────────────────────────────
+
+        private HikCameraService EnsureHikService()
+        {
+            if (_hikService == null)
+            {
+                _hikService = new HikCameraService();
+                WireService(_hikService);
+            }
+            return _hikService;
+        }
+
+        /// <summary>为指定设备挑选采集通道</summary>
+        private ICameraService ResolveService(CameraDevice device)
+        {
+            if (device.Source == DeviceSource.Uvc)
+            {
+                if (_uvcService == null)
+                {
+                    _uvcService = new UvcCameraService();
+                    WireService(_uvcService);
+                    _uvcService.Initialize();
+                }
+                return _uvcService;
+            }
+
+            HikCameraService hik = EnsureHikService();
+            if (!HikSdkRuntime.IsInitialized) hik.Initialize();
+            return hik;
+        }
+
+        private void WireService(ICameraService service)
+        {
+            service.LogMessage += OnServiceLog;
+            service.ImageReceived += OnImageReceived;
+        }
+
+        private void UnwireService(ICameraService service)
+        {
+            service.LogMessage -= OnServiceLog;
+            service.ImageReceived -= OnImageReceived;
+        }
+
+        private void OnServiceLog(string message) => LogVM.AddLog(message);
 
         /// <summary>收到图像: 切回 UI 线程刷新显示</summary>
         private void OnImageReceived(BitmapSource image)
@@ -143,81 +201,62 @@ namespace CameraControl.ViewModels
                 CurrentImage = image;
         }
 
+        /// <summary>找出当前应该连接的相机: 优先设备管理里选中的那个，否则第一台可连接的</summary>
+        private CameraDevice? FindConnectableTarget()
+        {
+            CameraDevice? selected = App.DeviceManagement.SelectedCamera;
+            if (selected != null && selected.CanConnect) return selected;
+
+            return App.DeviceManagement.Devices
+                .OfType<CameraDevice>()
+                .FirstOrDefault(d => d.CanConnect);
+        }
+
         /// <summary>根据服务状态刷新连接显示</summary>
         private void UpdateConnectionState()
         {
-            CameraStatusText = _cameraService.IsConnected ? "已连接" : "未连接";
-            IsCameraConnected = _cameraService.IsConnected;
+            bool connected = _cameraService?.IsConnected == true;
+            IsCameraConnected = connected;
+
+            CameraDevice? target = _cameraService switch
+            {
+                HikCameraService hik => hik.TargetDevice,
+                UvcCameraService uvc => uvc.Device,
+                _ => null
+            };
+
+            CameraStatusText = connected
+                ? (string.IsNullOrWhiteSpace(target?.Name) ? "已连接" : "已连接 · " + target!.Name)
+                : "未连接";
         }
+
+        // ────────────────────────────────────────────────────────────────
+        // 导航
+        // ────────────────────────────────────────────────────────────────
 
         /// <summary>切换到主界面</summary>
-        private void ShowMainView()
-        {
-            IsMainView = true;
-            IsCalibrationView = false;
-            IsCalibrationToolsView = false;
-            IsUserCoordView = false;
-            IsRobotControlView = false;
-            OnPropertyChanged(nameof(IsMainView));
-            OnPropertyChanged(nameof(IsCalibrationView));
-            OnPropertyChanged(nameof(IsCalibrationToolsView));
-            OnPropertyChanged(nameof(IsUserCoordView));
-            OnPropertyChanged(nameof(IsRobotControlView));
-        }
+        private void ShowMainView() => Navigate(main: true, calibration: false, tools: false, userCoord: false, robot: false);
 
         /// <summary>切换到标定界面</summary>
-        private void ShowCalibrationView()
-        {
-            IsMainView = false;
-            IsCalibrationView = true;
-            IsCalibrationToolsView = false;
-            IsUserCoordView = false;
-            IsRobotControlView = false;
-            OnPropertyChanged(nameof(IsMainView));
-            OnPropertyChanged(nameof(IsCalibrationView));
-            OnPropertyChanged(nameof(IsCalibrationToolsView));
-            OnPropertyChanged(nameof(IsUserCoordView));
-            OnPropertyChanged(nameof(IsRobotControlView));
-        }
+        private void ShowCalibrationView() => Navigate(main: false, calibration: true, tools: false, userCoord: false, robot: false);
 
         /// <summary>切换到标定工具界面</summary>
-        private void ShowCalibrationToolsView()
-        {
-            IsMainView = false;
-            IsCalibrationView = false;
-            IsCalibrationToolsView = true;
-            IsUserCoordView = false;
-            IsRobotControlView = false;
-            OnPropertyChanged(nameof(IsMainView));
-            OnPropertyChanged(nameof(IsCalibrationView));
-            OnPropertyChanged(nameof(IsCalibrationToolsView));
-            OnPropertyChanged(nameof(IsUserCoordView));
-            OnPropertyChanged(nameof(IsRobotControlView));
-        }
+        private void ShowCalibrationToolsView() => Navigate(main: false, calibration: false, tools: true, userCoord: false, robot: false);
 
         /// <summary>切换到用户坐标系直接读取界面</summary>
-        private void ShowUserCoordView()
-        {
-            IsMainView = false;
-            IsCalibrationView = false;
-            IsCalibrationToolsView = false;
-            IsUserCoordView = true;
-            IsRobotControlView = false;
-            OnPropertyChanged(nameof(IsMainView));
-            OnPropertyChanged(nameof(IsCalibrationView));
-            OnPropertyChanged(nameof(IsCalibrationToolsView));
-            OnPropertyChanged(nameof(IsUserCoordView));
-            OnPropertyChanged(nameof(IsRobotControlView));
-        }
+        private void ShowUserCoordView() => Navigate(main: false, calibration: false, tools: false, userCoord: true, robot: false);
 
         /// <summary>切换到机器人控制界面</summary>
-        private void ShowRobotControlView()
+        private void ShowRobotControlView() => Navigate(main: false, calibration: false, tools: false, userCoord: false, robot: true);
+
+        private void Navigate(bool main, bool calibration, bool tools, bool userCoord, bool robot)
         {
-            IsMainView = false;
-            IsCalibrationView = false;
-            IsCalibrationToolsView = false;
-            IsUserCoordView = false;
-            IsRobotControlView = true;
+            IsMainView = main;
+            IsCalibrationView = calibration;
+            IsCalibrationToolsView = tools;
+            IsUserCoordView = userCoord;
+            IsRobotControlView = robot;
+
             OnPropertyChanged(nameof(IsMainView));
             OnPropertyChanged(nameof(IsCalibrationView));
             OnPropertyChanged(nameof(IsCalibrationToolsView));
@@ -225,13 +264,37 @@ namespace CameraControl.ViewModels
             OnPropertyChanged(nameof(IsRobotControlView));
         }
 
+        // ────────────────────────────────────────────────────────────────
+        // 采集命令
+        // ────────────────────────────────────────────────────────────────
+
         /// <summary>
-        /// 连接相机
+        /// 连接相机: 连接「设备管理」里选中的相机(没选中就取第一台可连接的)。
         /// </summary>
         private void ConnectCamera()
         {
-            _cameraService.Connect();
+            CameraDevice? target = FindConnectableTarget();
+            if (target == null)
+            {
+                LogVM.AddLog("没有可连接的相机。请先在「设备管理」里点「扫描」自动发现，或手工添加设备。");
+                UpdateConnectionState();
+                return;
+            }
+
+            ICameraService service = ResolveService(target);
+
+            // 切换采集通道: 先把旧通道断掉，避免两台相机同时占着
+            if (!ReferenceEquals(service, _cameraService))
+            {
+                try { _cameraService?.Disconnect(); } catch { }
+                _cameraService = service;
+            }
+
+            bool ok = service.Connect(target);
             UpdateConnectionState();
+
+            if (!ok && !service.SupportsStreaming)
+                LogVM.AddLog($"「{target.Name}」的采集通道尚未实现(UVC 预留接口)，目前只能登记设备，暂不支持预览。");
         }
 
         /// <summary>
@@ -239,15 +302,26 @@ namespace CameraControl.ViewModels
         /// </summary>
         private void DisconnectCamera()
         {
-            _cameraService.Disconnect();
+            try { _cameraService?.Disconnect(); } catch { }
+
+            // 隐私: 断开后立刻丢掉当前显示的画面引用，不留在内存里
+            ClearDisplayedFrame();
             UpdateConnectionState();
         }
+
+        /// <summary>
+        /// 丢弃当前显示的画面。
+        /// 相机帧只以 BitmapSource 存在于内存(不做任何序列化/落盘)，
+        /// 这里把引用置空，交给 GC 回收；程序退出后内存自然清空。
+        /// </summary>
+        private void ClearDisplayedFrame() => CurrentImage = null;
 
         /// <summary>
         /// 单次采集
         /// </summary>
         private void SingleCapture()
         {
+            if (_cameraService == null) return;
             _cameraService.CaptureOnce();
         }
 
@@ -256,16 +330,33 @@ namespace CameraControl.ViewModels
         /// </summary>
         private void ContinuousCapture()
         {
+            if (_cameraService == null) return;
             _cameraService.ToggleContinuousCapture();
         }
 
         /// <summary>
-        /// 关闭SDK，释放资源
+        /// 关闭SDK，释放资源。
+        /// 隐私: 同时清空当前画面引用，保证程序关闭后不留残影。
         /// </summary>
         public void Dispose()
         {
-            _cameraService.ImageReceived -= OnImageReceived;
-            _cameraService.Dispose();
+            ClearDisplayedFrame();
+
+            if (_hikService != null)
+            {
+                UnwireService(_hikService);
+                _hikService.Dispose();
+                _hikService = null;
+            }
+
+            if (_uvcService != null)
+            {
+                UnwireService(_uvcService);
+                _uvcService.Dispose();
+                _uvcService = null;
+            }
+
+            _cameraService = null;
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

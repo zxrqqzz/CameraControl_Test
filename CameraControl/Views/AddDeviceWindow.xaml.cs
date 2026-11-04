@@ -18,9 +18,13 @@ namespace CameraControl.Views
         private void UpdateType()
         {
             bool isCamera = RadCamera.IsChecked == true;
-            var vis = isCamera ? Visibility.Visible : Visibility.Collapsed;
-            LblIp.Visibility = vis;
-            TxtIp.Visibility = vis;
+            var cameraOnly = isCamera ? Visibility.Visible : Visibility.Collapsed;
+
+            LblSerial.Visibility = cameraOnly;
+            TxtSerial.Visibility = cameraOnly;
+            LblIp.Visibility = cameraOnly;
+            TxtIp.Visibility = cameraOnly;
+
             Title = isCamera ? "添加相机" : "添加光源";
         }
 
@@ -40,7 +44,9 @@ namespace CameraControl.Views
                     Name = name,
                     Vendor = TxtVendor.Text.Trim(),
                     Model = TxtModel.Text.Trim(),
-                    Ip = TxtIp.Text.Trim()
+                    SerialNumber = TxtSerial.Text.Trim(),
+                    Ip = TxtIp.Text.Trim(),
+                    Source = DeviceSource.Manual
                 };
             }
             else

@@ -1,4 +1,5 @@
-﻿using CameraControl.ViewModels;
+using CameraControl.Services;
+using CameraControl.ViewModels;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -51,7 +52,16 @@ namespace CameraControl
         /// <summary>打开相机参数设置弹窗</summary>
         private void OnParameterSettingsClick(object sender, RoutedEventArgs e)
         {
-            var paramWindow = new Views.CameraParameterWindow(_vm.CameraService) { Owner = this };
+            HikCameraService? hik = _vm.HikCamera;
+            if (hik == null)
+            {
+                MessageBox.Show(this,
+                    "还没有可用的海康相机通道。请先在「设备管理」里扫描或选择一台海康相机。",
+                    "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var paramWindow = new Views.CameraParameterWindow(hik) { Owner = this };
             paramWindow.Show();
         }
 

@@ -55,7 +55,7 @@ namespace CameraControl.Services
             }
         }
 
-        /// <summary>汇总当前全局状态并保存(通讯设备、全局触发、机器人IP、二维坐标系)</summary>
+        /// <summary>汇总当前全局状态并保存(通讯设备、相机列表、扫描选项、全局触发、机器人IP、二维坐标系)</summary>
         public void SaveAll()
         {
             var settings = new AppSettings
@@ -63,6 +63,8 @@ namespace CameraControl.Services
                 RobotIp = App.Calibration.RobotIp,
                 UserFrameNumber = App.UserCoordinate.UserFrameNumber,
                 Calibration = App.Calibration.BuildExportData(),
+                Cameras = App.DeviceManagement.BuildSettings(),
+                Scan = App.DeviceManagement.BuildScanSettings(),
                 Devices = App.Communication.Devices.Select(d => new DeviceSettings
                 {
                     Name = d.Name,
@@ -96,6 +98,7 @@ namespace CameraControl.Services
             App.GlobalTrigger.RestoreFromSettings(s.Triggers);
             App.Calibration.RestoreSettings(s.RobotIp, s.Calibration);
             App.UserCoordinate.RestoreSettings(s.UserFrameNumber);
+            App.DeviceManagement.RestoreFromSettings(s.Cameras, s.Scan);
         }
     }
 }

@@ -23,6 +23,9 @@ namespace CameraControl.Models
 
         public abstract string Display { get; }
 
+        /// <summary>列表里第二行的小字说明(默认无)</summary>
+        public virtual string SubtitleText => string.Empty;
+
         public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string name = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
