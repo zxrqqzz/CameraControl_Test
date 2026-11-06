@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CameraControl.Domain</RootNamespace>
+    <AssemblyName>CameraControl.Domain</AssemblyName>
+    <!--
+      刻意用平台中立的 net10.0（而非 net10.0-windows）：
+      领域层一旦引用了 WPF / Win32 / Windows.* API 就会编译失败。
+      这是"零框架依赖"的编译器级强制手段，不靠自觉。
+    -->
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CameraControl.Domain.Tests</RootNamespace>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- 测试工程不把分析器警告当错误，避免噪音压过真问题 -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CameraControl.Domain\CameraControl.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

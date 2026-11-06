@@ -1,0 +1,31 @@
+<Project>
+
+  <!--
+    全仓统一构建属性。旧单工程已删除，这里对所有工程生效。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- 生产程序集统一锁 x64：海康 SDK 是 AMD64 原生库 -->
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+  <!-- 测试工程不把分析器警告当错误，避免噪音压过真问题 -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!-- 控制台工具同样放宽警告（诊断代码允许实验性写法） -->
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('CameraControl.Tools.'))">
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CameraControl.Infrastructure</RootNamespace>
+    <AssemblyName>CameraControl.Infrastructure</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CameraControl.Domain\CameraControl.Domain.csproj" />
+    <ProjectReference Include="..\CameraControl.Application\CameraControl.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 海康 MVS SDK（AMD64 原生库，项目已由 Directory.Build.props 锁定 x64） -->
+    <Reference Include="MvCameraControl.Net">
+      <HintPath>..\..\third_party\hik-mvs\MvCameraControl.Net.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

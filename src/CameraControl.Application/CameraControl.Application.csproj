@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CameraControl.Application</RootNamespace>
+    <AssemblyName>CameraControl.Application</AssemblyName>
+    <!-- 同 Domain：平台中立，禁止碰 UI / 硬件 -->
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CameraControl.Domain\CameraControl.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

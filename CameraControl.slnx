@@ -1,3 +1,14 @@
 <Solution>
-  <Project Path="CameraControl/CameraControl.csproj" />
+  <!-- 分层架构 -->
+  <Project Path="src/CameraControl.Domain/CameraControl.Domain.csproj" />
+  <Project Path="src/CameraControl.Application/CameraControl.Application.csproj" />
+  <Project Path="src/CameraControl.Infrastructure/CameraControl.Infrastructure.csproj" />
+  <Project Path="src/CameraControl.Composition/CameraControl.Composition.csproj" />
+
+  <!-- 测试 -->
+  <Project Path="tests/CameraControl.Domain.Tests/CameraControl.Domain.Tests.csproj" />
+  <Project Path="tests/CameraControl.Application.Tests/CameraControl.Application.Tests.csproj" />
+
+  <!-- 工具 -->
+  <Project Path="tools/CameraControl.Tools.BurstAnalyzer/CameraControl.Tools.BurstAnalyzer.csproj" />
 </Solution>
