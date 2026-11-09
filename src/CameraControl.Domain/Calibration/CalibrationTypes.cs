@@ -78,12 +78,16 @@ public sealed record CameraIntrinsics(double Fx, double Fy, double Cx, double Cy
 /// <param name="HomographyRmsePx">各视角单应对齐的均方根误差（像素），反映角点质量。</param>
 /// <param name="Error">失败原因。</param>
 /// <param name="Diagnostics">诊断信息（如视角过少、退化配置）。</param>
+/// <param name="Distortion">畸变系数（闭合解阶段为 null 或全零）。</param>
+/// <param name="ReprojectionRmsePx">用完整模型（内参+畸变+位姿）重投影的均方根误差；精化后才有意义。</param>
 public sealed record IntrinsicsSolveResult(
     bool Ok,
     CameraIntrinsics? Intrinsics,
     double HomographyRmsePx,
     string? Error = null,
-    IReadOnlyList<string>? Diagnostics = null)
+    IReadOnlyList<string>? Diagnostics = null,
+    DistortionModel? Distortion = null,
+    double ReprojectionRmsePx = double.NaN)
 {
     public static IntrinsicsSolveResult Failure(string error, IReadOnlyList<string>? diagnostics = null) =>
         new(false, null, double.NaN, error, diagnostics);

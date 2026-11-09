@@ -3,6 +3,8 @@
   <PropertyGroup>
     <RootNamespace>CameraControl.Infrastructure</RootNamespace>
     <AssemblyName>CameraControl.Infrastructure</AssemblyName>
+    <!-- UVC 采集需要 WinRT 的 IMemoryBufferByteAccess 指针访问 -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

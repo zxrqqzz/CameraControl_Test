@@ -9,6 +9,7 @@
   <!-- 测试 -->
   <Project Path="tests/CameraControl.Domain.Tests/CameraControl.Domain.Tests.csproj" />
   <Project Path="tests/CameraControl.Application.Tests/CameraControl.Application.Tests.csproj" />
+  <Project Path="tests/CameraControl.Infrastructure.Tests/CameraControl.Infrastructure.Tests.csproj" />
 
   <!-- 工具 -->
   <Project Path="tools/CameraControl.Tools.BurstAnalyzer/CameraControl.Tools.BurstAnalyzer.csproj" />

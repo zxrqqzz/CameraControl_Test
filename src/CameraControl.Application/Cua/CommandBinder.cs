@@ -44,6 +44,11 @@ public sealed class DefaultCommandBinder : ICommandBinder
                 RobotStopCommand.Id => new RobotStopCommand(),
                 RobotMoveToCommand.Id => BindRobotMoveTo(arguments),
 
+                CalibrationGetCommand.Id => BindCalibrationGet(arguments),
+                CalibrationListCommand.Id => new CalibrationListCommand(),
+                CalibrationRemoveCommand.Id => BindCalibrationRemove(arguments),
+                CalibrationSolveCommand.Id => BindCalibrationSolve(arguments),
+
                 _ => Unknown(capabilityId, out error)
             };
         }
@@ -131,5 +136,79 @@ public sealed class DefaultCommandBinder : ICommandBinder
         int timeoutMs = Math.Clamp(JsonArgs.GetInt(arguments, "timeoutMs") ?? 30000, 100, 600_000);
 
         return new RobotMoveToCommand(target, timeoutMs);
+    }
+
+    // ── 标定 ────────────────────────────────────────────────
+
+    private static ICommand BindCalibrationGet(JsonElement arguments)
+    {
+        string cameraId = JsonArgs.GetString(arguments, "cameraId")
+            ?? throw new JsonException("缺少 cameraId。");
+
+        return new CalibrationGetCommand(cameraId);
+    }
+
+    private static ICommand BindCalibrationRemove(JsonElement arguments)
+    {
+        string cameraId = JsonArgs.GetString(arguments, "cameraId")
+            ?? throw new JsonException("缺少 cameraId。");
+
+        return new CalibrationRemoveCommand(cameraId);
+    }
+
+    private static ICommand BindCalibrationSolve(JsonElement arguments)
+    {
+        string cameraId = JsonArgs.GetString(arguments, "cameraId")
+            ?? throw new JsonException("缺少 cameraId。");
+
+        int gridCols = JsonArgs.GetInt(arguments, "gridCols")
+            ?? throw new JsonException("缺少 gridCols。");
+
+        int gridRows = JsonArgs.GetInt(arguments, "gridRows")
+            ?? throw new JsonException("缺少 gridRows。");
+
+        double squareMm = JsonArgs.RequireDouble(arguments, "squareMm");
+
+        int imageWidth = JsonArgs.GetInt(arguments, "imageWidth")
+            ?? throw new JsonException("缺少 imageWidth。");
+
+        int imageHeight = JsonArgs.GetInt(arguments, "imageHeight")
+            ?? throw new JsonException("缺少 imageHeight。");
+
+        if (arguments.ValueKind != JsonValueKind.Object
+            || !arguments.TryGetProperty("views", out JsonElement viewsElement)
+            || viewsElement.ValueKind != JsonValueKind.Array)
+        {
+            throw new JsonException("缺少 views 数组。");
+        }
+
+        var views = new List<IReadOnlyList<Domain.Calibration.Point2>>();
+
+        foreach (JsonElement view in viewsElement.EnumerateArray())
+        {
+            if (view.ValueKind != JsonValueKind.Array)
+                throw new JsonException("views 的每一项必须是点数组。");
+
+            var points = new List<Domain.Calibration.Point2>();
+
+            foreach (JsonElement point in view.EnumerateArray())
+            {
+                points.Add(new Domain.Calibration.Point2(
+                    JsonArgs.RequireDouble(point, "x"),
+                    JsonArgs.RequireDouble(point, "y")));
+            }
+
+            views.Add(points);
+        }
+
+        return new CalibrationSolveCommand(
+            cameraId,
+            gridCols,
+            gridRows,
+            squareMm,
+            imageWidth,
+            imageHeight,
+            views,
+            JsonArgs.GetString(arguments, "note"));
     }
 }

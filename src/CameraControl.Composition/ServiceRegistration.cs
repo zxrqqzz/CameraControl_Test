@@ -4,18 +4,22 @@ using CameraControl.Application.Capture;
 using CameraControl.Application.Commands;
 using CameraControl.Application.Cua;
 using CameraControl.Application.Diagnostics;
+using CameraControl.Domain.Calibration;
 using CameraControl.Domain.Ports;
 using CameraControl.Domain.Privacy;
 using CameraControl.Domain.Robotics;
 using CameraControl.Infrastructure;
 using CameraControl.Infrastructure.Ai;
 using CameraControl.Infrastructure.Auditing;
+using CameraControl.Infrastructure.Cameras;
 using CameraControl.Infrastructure.Diagnostics;
 using CameraControl.Infrastructure.Hik;
 using CameraControl.Infrastructure.Logging;
 using CameraControl.Infrastructure.Privacy;
 using CameraControl.Infrastructure.Readiness;
+using CameraControl.Infrastructure.Storage;
 using CameraControl.Infrastructure.Triggers;
+using CameraControl.Infrastructure.Uvc;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
@@ -74,9 +78,16 @@ public static class ServiceRegistration
         services.AddSingleton<IMetrics, InMemoryMetrics>();
         services.AddSingleton<IAuditLog>(_ => new FileAuditLog(auditDirectory));
         services.AddSingleton<ISettingsStore>(_ => new JsonSettingsStore(dataDirectory));
+        services.AddSingleton<ICalibrationStore>(_ => new JsonCalibrationStore(dataDirectory));
 
         // ── 端口 → 适配器 ───────────────────────────────────────
-        services.AddSingleton<ICameraProvider, HikCameraProvider>();
+        // 相机：海康（GigE/USB3）+ UVC（本机摄像头）合并；单路失败不影响另一路
+        services.AddSingleton<HikCameraProvider>();
+        services.AddSingleton<UvcCameraProvider>();
+        services.AddSingleton<ICameraProvider>(sp => new CompositeCameraProvider(
+            sp.GetRequiredService<HikCameraProvider>(),
+            sp.GetRequiredService<UvcCameraProvider>()));
+
         services.AddSingleton<IImagePersistencePolicy, DefaultImagePersistencePolicy>();
         services.AddSingleton<SoftwareTriggerSource>();
         services.AddSingleton<ITriggerSourceFactory, TriggerSourceFactory>();
@@ -92,6 +103,9 @@ public static class ServiceRegistration
         services.AddSingleton<ICameraSessionRegistry, CameraSessionRegistry>();
         services.AddSingleton<ICaptureGroupService, CaptureGroupService>();
         services.AddSingleton<IRiskPolicy, DefaultRiskPolicy>();
+                // 精化器（RefiningCalibrator）尚未通过合成数据验证，默认仍用闭合解。
+        // 详见 docs/09-真实数据验证.md。验证通过后把下一行换成 RefiningCalibrator。
+        services.AddSingleton<Domain.Calibration.ICameraCalibrator, Domain.Calibration.ZhangCalibrator>();
 
         // ── 自检探针（新增检查项只需再加一个 IHealthProbe）──────
         services.AddSingleton<IHealthProbe, ElevationProbe>();
@@ -114,7 +128,14 @@ public static class ServiceRegistration
                 .Register(new SystemGetAuditLogCapability(sp.GetRequiredService<IAuditLog>()))
                 .Register(new RobotGetStateCapability(sp.GetRequiredService<IRobot>()))
                 .Register(new RobotStopCapability(sp.GetRequiredService<IRobot>()))
-                .Register(new RobotMoveToCapability(sp.GetRequiredService<IRobot>()));
+                .Register(new RobotMoveToCapability(sp.GetRequiredService<IRobot>()))
+                .Register(new CalibrationGetCapability(sp.GetRequiredService<ICalibrationStore>()))
+                .Register(new CalibrationListCapability(sp.GetRequiredService<ICalibrationStore>()))
+                .Register(new CalibrationRemoveCapability(sp.GetRequiredService<ICalibrationStore>()))
+                .Register(new CalibrationSolveCapability(
+                    sp.GetRequiredService<Domain.Calibration.ICameraCalibrator>(),
+                    sp.GetRequiredService<ICalibrationStore>(),
+                    sp.GetRequiredService<IClock>()));
 
             registry.Register(new CuaGetCapabilitiesCapability(
                 registry,

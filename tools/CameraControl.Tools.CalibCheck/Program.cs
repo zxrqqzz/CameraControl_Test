@@ -148,11 +148,28 @@ internal static class Program
 
         GrayImage firstImage = images[0].Image;
 
-        var calibrator = new ZhangCalibrator();
+        var closedForm = new ZhangCalibrator();
+        IntrinsicsSolveResult closed = closedForm.Solve(views, spec, firstImage.Width, firstImage.Height);
+
+        var calibrator = new RefiningCalibrator();
         IntrinsicsSolveResult result = calibrator.Solve(views, spec, firstImage.Width, firstImage.Height);
 
         Console.WriteLine();
-        Console.WriteLine("=== 标定结果（真实数据 / 闭合解 / 未含畸变）===");
+        Console.WriteLine("=== 对比：闭合解 vs 畸变精化（真实数据）===");
+
+        if (closed.Ok && closed.Intrinsics is not null)
+        {
+            CameraIntrinsics ck = closed.Intrinsics;
+            Console.WriteLine($"  闭合解   ：fx={ck.Fx:F2} fy={ck.Fy:F2} cx={ck.Cx:F2} cy={ck.Cy:F2}  " +
+                              $"单应RMSE={closed.HomographyRmsePx:F3}px");
+        }
+        else
+        {
+            Console.WriteLine($"  闭合解   ：失败（{closed.Error}）");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("=== 标定结果（真实数据 / 含畸变 + 非线性精化）===");
 
         if (!result.Ok)
         {
@@ -167,10 +184,27 @@ internal static class Program
         Console.WriteLine($"  cx = {k.Cx:F3}");
         Console.WriteLine($"  cy = {k.Cy:F3}");
         Console.WriteLine($"  图像中心 = ({firstImage.Width / 2.0:F1}, {firstImage.Height / 2.0:F1})");
-        Console.WriteLine($"  单应 RMSE = {result.HomographyRmsePx:F3} px");
+        Console.WriteLine($"  单应 RMSE = {result.HomographyRmsePx:F3} px（闭合解阶段）");
+        Console.WriteLine($"  重投影 RMSE = {result.ReprojectionRmsePx:F3} px（完整模型）");
+
+        if (result.Distortion is not null)
+            Console.WriteLine($"  畸变 = {result.Distortion}");
+
+        if (closed.Ok && closed.HomographyRmsePx > 0 && result.ReprojectionRmsePx > 0)
+        {
+            double drop = (1 - (result.ReprojectionRmsePx / closed.HomographyRmsePx)) * 100;
+            Console.WriteLine($"  误差下降 {drop:F1}%（{closed.HomographyRmsePx:F3} → {result.ReprojectionRmsePx:F3} px）");
+        }
+
         Console.WriteLine($"  视角数 = {views.Count}，每视角角点 = {spec.Count}");
 
         foreach (string d in result.Diagnostics ?? []) Console.WriteLine($"  · {d}");
+
+        // ── 权威参考：用 OpenCV 自己的标定（同一批角点）──────────
+        if (args.Contains("--reference", StringComparer.Ordinal))
+        {
+            RunOpenCvReference(views, firstImage, spec);
+        }
 
         // ── 稳定性：奇偶分半 ──────────────────────────────
         Console.WriteLine();
@@ -277,5 +311,52 @@ internal static class Program
         }
 
         return null;
+}
+
+    /// <summary>
+    /// 用 OpenCV 的 calibrateCamera 在同一批角点上跑一遍，作为权威参考。
+    ///
+    /// 意义：OpenCV 是行业标准实现，数据完全一致，因此差异只来自算法本身。
+    /// 它给出的 fx / distCoeffs / RMS 就是"正确实现应该达到的水平"。
+    /// </summary>
+    private static void RunOpenCvReference(
+        List<CalibrationView> views,
+        GrayImage image,
+        ChessboardSpec spec)
+    {
+        Console.WriteLine();
+        Console.WriteLine("=== 参考实现：OpenCV calibrateCamera（同一批角点）===");
+
+        var objectPoints = new List<Point3f[]>(views.Count);
+        var imagePoints = new List<Point2f[]>(views.Count);
+
+        foreach (CalibrationView view in views)
+        {
+            objectPoints.Add([.. view.ObjectPoints.Select(p => new Point3f((float)p.X, (float)p.Y, (float)p.Z))]);
+            imagePoints.Add([.. view.ImagePoints.Select(p => new Point2f((float)p.X, (float)p.Y))]);
+        }
+
+        var cameraMatrix = new double[3, 3];
+        var distCoeffs = new double[5];
+
+        double rms = Cv2.CalibrateCamera(
+            objectPoints,
+            imagePoints,
+            new OpenCvSharp.Size(image.Width, image.Height),
+            cameraMatrix,
+            distCoeffs,
+            out _,
+            out _,
+            CalibrationFlags.None,
+            new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.Count, 100, 1e-9));
+
+        Console.WriteLine($"  fx = {cameraMatrix[0, 0]:F3}");
+        Console.WriteLine($"  fy = {cameraMatrix[1, 1]:F3}");
+        Console.WriteLine($"  cx = {cameraMatrix[0, 2]:F3}");
+        Console.WriteLine($"  cy = {cameraMatrix[1, 2]:F3}");
+        Console.WriteLine($"  畸变 = k1={distCoeffs[0]:F6} k2={distCoeffs[1]:F6} " +
+                          $"p1={distCoeffs[2]:F6} p2={distCoeffs[3]:F6} k3={distCoeffs[4]:F6}");
+        Console.WriteLine($"  重投影 RMS = {rms:F4} px  ← 参考水平");
+        Console.WriteLine($"  视角数 = {views.Count}，每视角角点 = {spec.Count}");
     }
 }

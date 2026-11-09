@@ -39,7 +39,8 @@ public partial class App : System.Windows.Application
         string? smokeOutput = GetArgValue(e.Args, "--smoke-test");
         if (smokeOutput is not null)
         {
-            int code = RunSmokeTest(smokeOutput);
+            bool captureTest = Array.IndexOf(e.Args, "--capture-test") >= 0;
+            int code = RunSmokeTest(smokeOutput, captureTest);
             Shutdown(code);
             return;
         }
@@ -61,7 +62,7 @@ public partial class App : System.Windows.Application
     ///
     /// 之所以做成写文件而不是控制台：WPF 是 WinExe 子系统，没有继承父进程控制台。
     /// </summary>
-    private int RunSmokeTest(string outputPath)
+    private int RunSmokeTest(string outputPath, bool captureTest)
     {
         var report = new StringBuilder();
         int failures = 0;
@@ -113,9 +114,83 @@ public partial class App : System.Windows.Application
             report.AppendLine("--- 自检明细 ---");
             foreach (string item in viewModel.SelfCheckItems)
                 report.AppendLine("  " + item);
+
+            // 直接把设备明细（名称/类型/是否红外）打出来，便于确认 UVC 是否被正确识别
+            report.AppendLine();
+            report.AppendLine("--- 设备明细 ---");
+
+            try
+            {
+                var provider = _services!.GetRequiredService<CameraControl.Domain.Ports.ICameraProvider>();
+                var devices = provider.DiscoverAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+                report.AppendLine($"  共 {devices.Count} 台：");
+
+                foreach (var device in devices)
+                {
+                    string flag = device.IsInfraredOnly
+                        ? "(红外，不取流)"
+                        : device.CanCapture ? "(可采集)" : "(不可采集)";
+
+                    report.AppendLine($"  · {device.DisplayName}  [{device.Kind}]  {flag}");
+                    report.AppendLine($"    id = {device.Id.Value}");
+                    report.AppendLine($"    厂商 = {device.Vendor}  型号 = {device.Model}");
+                }
+            }
+            catch (Exception ex)
+            {
+                report.AppendLine($"  枚举失败：{ex.Message}");
+            }
+
+            // 可选：真抓一帧，验证打开/采集链路与错误映射
+            if (captureTest)
+            {
+                report.AppendLine();
+                report.AppendLine("--- 采集测试 ---");
+
+                try
+                {
+                    var provider = _services!.GetRequiredService<CameraControl.Domain.Ports.ICameraProvider>();
+                    var devices = provider.DiscoverAsync(CancellationToken.None).GetAwaiter().GetResult();
+                    var target = devices.FirstOrDefault(d => d.CanCapture);
+
+                    if (target is null)
+                    {
+                        report.AppendLine("  没有可采集设备，跳过。");
+                    }
+                    else
+                    {
+                        report.AppendLine($"  目标：{target.DisplayName}");
+
+                        var session = provider.OpenAsync(target.Id, CancellationToken.None)
+                            .GetAwaiter().GetResult();
+
+                        try
+                        {
+                            var frame = session.CaptureSingleAsync(null, CancellationToken.None)
+                                .GetAwaiter().GetResult();
+
+                            report.AppendLine(
+                                $"  成功：{frame.Image.Width}×{frame.Image.Height} " +
+                                $"{frame.Image.PixelFormat} {frame.Image.Pixels.Length} 字节");
+                        }
+                        finally
+                        {
+                            session.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                        }
+                    }
+                }
+                catch (CameraControl.Domain.Ports.CameraOperationException ex)
+                {
+                    report.AppendLine($"  预期内失败：[{ex.ErrorCode}] {ex.Message}");
+                }
+                catch (Exception ex)
+                {
+                    report.AppendLine($"  失败：{ex.GetType().Name}: {ex.Message}");
+                }
+            }
         }
 
-        report.AppendLine();
         report.AppendLine(failures == 0 ? "结论：全部通过" : $"结论：{failures} 项失败");
 
         try

@@ -4,7 +4,12 @@
     全仓统一构建属性。旧单工程已删除，这里对所有工程生效。
   -->
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!--
+      19041 = Windows 10 2004 的 SDK 版本。
+      提上来是为了拿 WinRT 投影（Windows.Media.Capture 等），UVC/内置摄像头采集需要它。
+      Domain / Application 在自己的 csproj 里覆盖为平台中立的 net10.0。
+    -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

@@ -122,22 +122,37 @@ dotnet run -- --configure --base-url https://api.deepseek.com/v1 --model deepsee
 dotnet run -- --goal "列出当前所有相机" --show-steps
 ```
 
-## ⚠ 当前最大功能缺口：UVC / 内置摄像头
+## ✅ 已完成：UVC / 内置摄像头（原最大功能缺口）
 
-旧的 `UvcDeviceScanner` + WinRT `MediaCapture` 采集随旧工程一起删除，**尚未迁移**。
-后果：笔记本自带摄像头现在枚举不到、也拍不了。
+已迁移到新架构，**真机验证通过**：
 
-迁移到 `Infrastructure` 时必须保留原有隐私约束：
-画面纯内存、关闭即消失、默认拒绝任何落盘、AI 同样受约束。
+| 环节 | 实测 |
+|---|---|
+| 枚举 | `Integrated Camera`（可采集）+ `Integrated IR Camera`（红外，只列出不取流） |
+| 打开 | 成功（共享只读，不独占） |
+| 采集 | **1280×720 Bgra32，3,686,400 字节** |
+| 隐私 | 采集全程走内存流，数据目录**图片文件数 = 0** |
+
+实现位置：`src/CameraControl.Infrastructure/Uvc/`
+- `UvcDeviceEnumerator` — 注册表 `Service=usbvideo` 枚举（避免误判音频/打印机）
+- `UvcCameraSession` — WinRT `MediaCapture` + `CapturePhotoToStreamAsync` + `GetPixelDataAsync`
+- `UvcCameraProvider` — 红外拒绝打开
+- `CompositeCameraProvider` — 海康 + UVC 合并，**单路失败不影响另一路**
+
+### 踩坑记录（都已写进代码注释）
+
+1. **手拼设备符号链接得到 0x80070490** → 改用 `DeviceInformation.FindAllAsync` 权威枚举，按实例末段匹配。
+2. **.NET 5+ CsWinRT 不支持 `[ComImport]` 强转** 取 `IMemoryBufferByteAccess` → 改用官方 `GetPixelDataAsync()`。
+3. **WinRT 的 Access Denied 异常 Message 为空**，只能靠 `HResult` 判断 → 必须显式翻译，否则用户只看到一句空话。
+4. 平台目标提升到 `net10.0-windows10.0.19041.0`（WinRT 投影需要），Domain/Application 仍是平台中立的 `net10.0`。
 
 ## 下一步
 
-1. **棋盘点阵整理改用 RANSAC 全局拟合**（当前卡点，详见 `docs/09-真实数据验证.md`）
-   —— 真实数据、真实数据解码、Harris 检测都已就绪，只差点阵排序
-2. **迁移 UVC 支持**（功能回退）
-3. **YMConnect 机器人适配器**（需先摸清 API：194 类型 / 982 方法 / .NET 8）
-4. 标定畸变系数 + 非线性精化；手眼标定 AX=XB
-5. **实地跑 BurstAnalyzer baseline** → P2 视觉振动门
+1. **标定产品化**：把 `calibration.*` 能力接进命令总线 + 标定结果存储（`ICalibrationStore`）+ 标定界面
+2. **畸变系数 + 非线性精化**（当前与公开参考值差约 3%，见 `docs/09`）
+3. **手眼标定 AX=XB**（EyeInHand 必需，否则图像坐标换不到机器人坐标）
+4. **YMConnect 机器人适配器**（需先摸清 API：194 类型 / 982 方法 / .NET 8）
+5. **实地跑 BurstAnalyzer baseline** → P2 视觉振动门（需真机数据）
 6. 实时预览流（`ICameraSession.StartStreaming`）
 
 ## 真实数据备查
