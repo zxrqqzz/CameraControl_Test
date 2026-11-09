@@ -85,6 +85,11 @@ public sealed class GrayImage
 public readonly record struct Roi(int X, int Y, int Width, int Height)
 {
     /// <summary>取图像中央的方形区域。</summary>
+    /// <remarks>
+    /// TODO-REALDATA: 默认取短边 1/4（<paramref name="fraction"/>=0.25）是**经验值，未用真实工位画面验证**。
+    /// 合理的 ROI 取决于工件纹理丰富度与实际振动方向；真实数据到手后应重新标定，
+    /// 并确认位移在整个 ROI 内是刚体平移（无旋转/形变）。验证后移除本标记。
+    /// </remarks>
     public static Roi CenterSquare(int imageWidth, int imageHeight, double fraction = 0.25)
     {
         int size = (int)Math.Max(16, Math.Min(imageWidth, imageHeight) * fraction);

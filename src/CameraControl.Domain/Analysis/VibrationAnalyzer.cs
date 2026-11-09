@@ -19,6 +19,14 @@ public static class VibrationAnalyzer
     /// <param name="roi">参考帧中的模板区域。</param>
     /// <param name="searchRadius">搜索半径（像素）。</param>
     /// <param name="minScore">最低可信相关分数；低于此值返回 Invalid。</param>
+    /// <remarks>
+    /// TODO-REALDATA: <paramref name="searchRadius"/>=12 与 <paramref name="minScore"/>=0.3 都是**经验值，
+    /// 尚未用真实工位数据验证**：
+    /// - 搜索半径必须大于最大真实位移，否则会在边界丢峰；需按工位振幅实测确定；
+    /// - 相关分数阈值决定"是否可信"；真实画面（反光、低纹理、运动模糊）下最佳分数会明显低于合成数据，
+    ///   阈值需按实测分布重新标定，否则可能把有效帧判为不可信。
+    /// 验证后移除本标记。
+    /// </remarks>
     public static OffsetMeasurement Measure(
         GrayImage reference,
         GrayImage target,

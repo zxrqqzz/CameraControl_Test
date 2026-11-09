@@ -49,7 +49,12 @@ public sealed record ExposureBudgetCheck(
 /// </summary>
 public static class ExposureBudget
 {
-    /// <summary>频闪相对曝光的允许余量（µs）。</summary>
+    /// <summary>
+    /// 频闪相对曝光的允许余量（µs）。
+    /// TODO-REALDATA: 50µs 是**经验值，未用真实光源实测**。它取决于光源上升时间、
+    /// 驱动器延迟与相机触发延迟；真实值需用光电二极管/示波器或逐级缩短曝光实测得到。
+    /// 验证后移除本标记。
+    /// </summary>
     public const int StrobeMarginUs = 50;
 
     public static ExposureBudgetCheck Evaluate(

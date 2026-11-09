@@ -9,6 +9,10 @@ namespace CameraControl.Infrastructure.Readiness;
 /// **诚实占位**：这不是振动判定，只是"等一会儿再拍"。
 /// 真正的视觉振动门（连拍测帧间位移）属于 P2，
 /// 需要先用 <c>tools/BurstAnalyzer</c> 在真实工位验证可行性与定参。
+///
+/// TODO-REALDATA: 本类**不包含任何实测数据**，传入的固定延时是占位值。
+/// 真实阈值（MaxAmplitude / StableDuration）必须来自 BurstAnalyzer 的 baseline 与 settling 报告。
+/// 移除占位实现时请一并删除本标记。
 /// </summary>
 public sealed class FixedDelayGate : IReadinessGate
 {

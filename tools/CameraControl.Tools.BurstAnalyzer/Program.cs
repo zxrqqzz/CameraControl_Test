@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CameraControl.Application.Capture;
+using CameraControl.Application.Diagnostics;
 using CameraControl.Composition;
 using CameraControl.Domain.Analysis;
 using CameraControl.Domain.Cameras;
@@ -50,6 +51,26 @@ internal static class Program
         var provider = services.GetRequiredService<ICameraProvider>();
         var clock = services.GetRequiredService<IClock>();
         var registry = services.GetRequiredService<ICameraSessionRegistry>();
+
+        // ── 启动自检：先把"环境不可能成功"的情况挡在前面 ──────
+        var selfCheck = services.GetRequiredService<ISelfCheck>();
+        SelfCheckReport health = await selfCheck.RunAsync(CancellationToken.None);
+
+        foreach (HealthItem item in health.Items.Where(i => i.Status != HealthStatus.Ok))
+        {
+            string tag = item.Status == HealthStatus.Fail ? "[失败]" : "[注意]";
+            Console.WriteLine($"{tag} {item.Name}: {item.Message}");
+        }
+
+        HealthItem? elevation = health.Items.FirstOrDefault(i => i.Name == "process.elevation");
+        if (elevation?.Status == HealthStatus.Fail)
+        {
+            Console.WriteLine();
+            Console.WriteLine("以管理员身份运行时 Windows 会拒绝访问摄像头，请用普通用户身份重新运行。");
+            return 6;
+        }
+
+        if (!health.OverallOk) Console.WriteLine();
 
         // ── 选相机 ────────────────────────────────────────────
         IReadOnlyList<CameraDescriptor> devices = await provider.DiscoverAsync(CancellationToken.None);
@@ -167,10 +188,13 @@ internal static class Program
             },
             recommended = new
             {
+                // TODO-REALDATA: maxAmplitude = P90 × 2 与 stableDuration = 3 帧间隔都是**纯经验公式，
+                // 尚未用真实工位数据验证**。报告里 validated 固定为 false，请勿把这两个数当成实测结论。
+                // 定参需要：① baseline 实测噪声底 ② settling 实测衰减曲线 ③ 融合精度目标。
                 maxAmplitudePx = Round(Math.Max(p90 * 2, 0.01)),
                 stableDurationMs = Math.Round(meanIntervalMs * 3, 1),
                 validated = false,
-                note = "经验初值（噪声底×2），未用融合精度目标校验"
+                note = "经验初值（噪声底×2），未经真实数据验证"
             },
             verdict,
             verdictReason,
@@ -198,7 +222,8 @@ internal static class Program
 
         Console.WriteLine();
         Console.WriteLine($"噪声底(中位) = {median:F3} px    P90 = {p90:F3} px    峰值 = {peak:F3} px");
-        Console.WriteLine($"建议 maxAmplitude = {Math.Max(p90 * 2, 0.01):F3} px，stableDuration ≈ {meanIntervalMs * 3:F0} ms");
+        // TODO-REALDATA: 此处打印的建议值同样是经验公式，未经真实数据验证。
+        Console.WriteLine($"[未验证] 建议 maxAmplitude ≈ {Math.Max(p90 * 2, 0.01):F3} px，stableDuration ≈ {meanIntervalMs * 3:F0} ms（经验初值）");
         Console.WriteLine($"结论：{verdict}（{verdictReason}）");
 
         return 0;

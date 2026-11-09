@@ -37,7 +37,12 @@ CameraControl.slnx
 | `docs/01-需求规格.md` | 正式 SRS：功能域 FR（含验收准则）+ 非功能 NFR |
 | `docs/02-架构总览.md` | 分层与依赖方向、端口契约、同步采集编排、DI、P0 范围 |
 | `docs/03-能力清单.md` | CUA 能力目录：id / schema / 风险等级 / 确认要求 |
-| `docs/04-P0进度.md` | **P0 交付物、测试证据、如何运行、已知取舍** |
+| `docs/04-P0进度.md` | **P0/P1 交付物、测试证据、如何运行、已知取舍** |
+| `docs/05-待实测数据清单.md` | **所有 `TODO-REALDATA` 占位数据的权威清单**（阈值、来源、风险、验证方法） |
+| `docs/06-CUA接入.md` | **AI 操控：架构、配置、安全边界、已知限制** |
+| `docs/07-P4界面.md` | **WPF 新壳：启动方式、冒烟测试、确认弹窗、已知缺口** |
+| `docs/08-P5机器人标定.md` | **标定数学内核（已验证）+ 机器人端口与能力 + 当前缺口** |
+| `docs/09-真实数据验证.md` | **真实数据集（Caltech 20 张）、已完成/未完成、失败根因与下一步（RANSAC）** |
 
 ## 快速命令
 
@@ -63,6 +68,23 @@ dotnet run -- --mode baseline --frames 60 --out D:\temp\baseline.json
 | **同步采集一律返回组语义** | 现在单相机，未来多相机；调用方不得依赖"单帧" |
 | **静止采集必须先过振动就绪门** | 不许"发完停止指令立即拍"，残余微振污染融合 |
 | **Domain/Application 保持平台中立** | 用 `net10.0` 而非 `-windows`，误引 WPF 会编译失败 |
+| **经验值必须标 `TODO-REALDATA`** | 未实测的阈值不得伪装成已验证；清单见 `docs/05-待实测数据清单.md` |
+
+## 占位数据处理约定
+
+代码里凡"还没用真实工位数据验证过"的经验值，都用统一标记：
+
+```csharp
+// TODO-REALDATA: <为什么是占位、真实值取决于什么>。验证后移除本标记。
+```
+
+查找全部占位：
+
+```powershell
+Get-ChildItem src,tools -Include *.cs -Recurse | Select-String 'TODO-REALDATA'
+```
+
+**拿到实测数据后必须**：① 删除代码里的标记 ② 更新 `docs/05-待实测数据清单.md` ③ 在 ADR 记录阈值来源。
 
 ## 关键历史踩坑（已固化进代码/文档）
 
@@ -73,12 +95,53 @@ dotnet run -- --mode baseline --frames 60 --out D:\temp\baseline.json
 - `ListView + GridView` 的列头会往 `%TEMP%\WPF\` 写光标临时文件，临时目录不可写时窗口直接崩；
   已改用 `ListBox + Grid` 行模板。
 - 相机隐私开关（ConsentStore）全 `Allow` 时仍可能失败，先看**进程是否提权**。
-- PowerShell 的 `Set-Content` 默认按 ANSI 写，会把中文源码写坏；改文件用写文件工具。
+- PowerShell 5.1 的 `Set-Content`/`Get-Content` 默认按 **ANSI**（本机 GBK）处理，会把 UTF-8 中文源码**双向搞坏**
+  （读成乱码→写回即双重编码）。改文件用写文件工具；校验编码也用读文件工具，不要用 `Get-Content` 判断。
+
+## 当前可运行的东西
+
+```powershell
+# ① 图形界面（P4 新壳）
+dotnet build CameraControl.slnx
+.\src\CameraControl.Presentation\bin\Debug\net10.0-windows\CameraControl.exe
+
+# ② 不弹窗冒烟测试（CI/排障）
+dotnet .\src\CameraControl.Presentation\bin\Debug\net10.0-windows\CameraControl.dll --smoke-test D:\temp\smoke.txt
+
+# ③ 离线连拍振动分析（需真机；启动先跑自检）
+cd tools\CameraControl.Tools.BurstAnalyzer
+dotnet run -- --mode baseline --frames 60 --out D:\temp\baseline.json
+
+# ④ 能力清单导出（CUA 白名单真相源）
+cd tools\CameraControl.Tools.Capabilities
+dotnet run -- --format markdown
+
+# ⑤ AI 操控（先配置 API，再下发自然语言任务）
+cd tools\CameraControl.Tools.Agent
+dotnet run -- --configure --base-url https://api.deepseek.com/v1 --model deepseek-chat --api-key-stdin
+dotnet run -- --goal "列出当前所有相机" --show-steps
+```
+
+## ⚠ 当前最大功能缺口：UVC / 内置摄像头
+
+旧的 `UvcDeviceScanner` + WinRT `MediaCapture` 采集随旧工程一起删除，**尚未迁移**。
+后果：笔记本自带摄像头现在枚举不到、也拍不了。
+
+迁移到 `Infrastructure` 时必须保留原有隐私约束：
+画面纯内存、关闭即消失、默认拒绝任何落盘、AI 同样受约束。
 
 ## 下一步
 
-1. **实地跑 BurstAnalyzer baseline** → 拿到工位噪声底，决定 P2 视觉振动门是否可行
-2. P1：Serilog + 启动自检 + 指标埋点
-3. P2：硬件触发（PLC/光源）+ `VisionStabilityGate` + 频闪/运动冻结
-4. P4：WPF 新壳（CommunityToolkit.Mvvm）接入命令总线
-5. P6：CUA（LLM + 能力清单导出）
+1. **棋盘点阵整理改用 RANSAC 全局拟合**（当前卡点，详见 `docs/09-真实数据验证.md`）
+   —— 真实数据、真实数据解码、Harris 检测都已就绪，只差点阵排序
+2. **迁移 UVC 支持**（功能回退）
+3. **YMConnect 机器人适配器**（需先摸清 API：194 类型 / 982 方法 / .NET 8）
+4. 标定畸变系数 + 非线性精化；手眼标定 AX=XB
+5. **实地跑 BurstAnalyzer baseline** → P2 视觉振动门
+6. 实时预览流（`ICameraSession.StartStreaming`）
+
+## 真实数据备查
+
+Caltech 标定数据集已下载到 `testdata/caltech/ex/`（20 张 640×480 真实 TIFF，**已 gitignore**）。
+来源、SHA-256、复现命令见 `docs/09-真实数据验证.md`。
+验证工具：`tools/CameraControl.Tools.CalibCheck`。

@@ -1,0 +1,185 @@
+using System.IO;
+using System.Text;
+using System.Windows;
+using System.Windows.Threading;
+using CameraControl.Application.Diagnostics;
+using Cua = CameraControl.Application.Cua;
+using CameraControl.Composition;
+using CameraControl.Domain.Ports;
+using CameraControl.Presentation.Services;
+using CameraControl.Presentation.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace CameraControl.Presentation;
+
+/// <summary>
+/// 应用入口：装配组合根，并把 WPF 的确认门注入命令总线。
+///
+/// 这是唯一"WPF 知道具体实现"的地方——领域与应用层完全不知道界面存在。
+///
+/// 支持 <c>--smoke-test &lt;输出文件&gt;</c>：不开窗口，验证容器装配、
+/// XAML 加载与关键服务解析，把结果写文件。用于 CI 与排障。
+/// </summary>
+public partial class App : System.Windows.Application
+{
+    private ServiceProvider? _services;
+
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+
+        // 未捕获异常不要让窗口静默消失
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
+
+        _services = ServiceRegistration.Build(
+            new CompositionOptions(ConsoleLogging: false),
+            new WpfConfirmationGate());
+
+        string? smokeOutput = GetArgValue(e.Args, "--smoke-test");
+        if (smokeOutput is not null)
+        {
+            int code = RunSmokeTest(smokeOutput);
+            Shutdown(code);
+            return;
+        }
+
+        // Composition 不引用 Presentation（避免反向依赖），
+        // 所以视图模型由宿主用容器构造。
+        var viewModel = ActivatorUtilities.CreateInstance<MainViewModel>(_services);
+
+        var window = new MainWindow { DataContext = viewModel };
+        MainWindow = window;
+        window.Show();
+
+        // 启动后自动跑一次自检，把环境问题早点摆到用户面前
+        viewModel.RunSelfCheckCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// 无窗口冒烟测试：验证组合根能装配、XAML 能加载、关键服务能解析。
+    ///
+    /// 之所以做成写文件而不是控制台：WPF 是 WinExe 子系统，没有继承父进程控制台。
+    /// </summary>
+    private int RunSmokeTest(string outputPath)
+    {
+        var report = new StringBuilder();
+        int failures = 0;
+
+        void Check(string name, Action action)
+        {
+            try
+            {
+                action();
+                report.AppendLine($"OK   {name}");
+            }
+            catch (Exception ex)
+            {
+                failures++;
+                report.AppendLine($"FAIL {name}: {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        report.AppendLine("=== CameraControl 冒烟测试 ===");
+
+        Check("组合根构建", () =>
+        {
+            if (_services is null) throw new InvalidOperationException("服务容器未构建。");
+        });
+
+        Check("解析 ICameraProvider", () => _ = _services!.GetRequiredService<ICameraProvider>());
+        Check("解析 ICaptureGroupService", () => _ = _services!.GetRequiredService<CameraControl.Application.Capture.ICaptureGroupService>());
+        Check("解析 ISelfCheck", () => _ = _services!.GetRequiredService<ISelfCheck>());
+        Check("解析 IAiAgent", () => _ = _services!.GetRequiredService<Cua.IAiAgent>());
+        Check("解析 ICommandBus", () => _ = _services!.GetRequiredService<CameraControl.Application.Commands.ICommandBus>());
+
+        MainViewModel? viewModel = null;
+
+        Check("构造 MainViewModel", () =>
+            viewModel = ActivatorUtilities.CreateInstance<MainViewModel>(_services!));
+
+        // 这一步会解析 XAML（InitializeComponent），能抓出缺失的 StaticResource、绑定错误等。
+        // 刻意只构造不 Show()：既验证了 XAML，又不会在冒烟测试时弹窗。
+        Check("加载 MainWindow XAML", () =>
+        {
+            _ = new MainWindow { DataContext = viewModel };
+        });
+
+        if (viewModel is not null)
+        {
+            Check("执行启动自检", () => RunSelfCheck(viewModel));
+
+            report.AppendLine();
+            report.AppendLine("--- 自检明细 ---");
+            foreach (string item in viewModel.SelfCheckItems)
+                report.AppendLine("  " + item);
+        }
+
+        report.AppendLine();
+        report.AppendLine(failures == 0 ? "结论：全部通过" : $"结论：{failures} 项失败");
+
+        try
+        {
+            string full = Path.GetFullPath(outputPath);
+            string? dir = Path.GetDirectoryName(full);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
+            File.WriteAllText(full, report.ToString(), Encoding.UTF8);
+        }
+        catch
+        {
+            // 写不了报告也不能崩
+        }
+
+        return failures == 0 ? 0 : 1;
+
+        // 局部函数：避免把异步调用混进同步 Check
+        static void RunSelfCheck(MainViewModel vm)
+        {
+            vm.RunSelfCheckCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+
+            if (vm.SelfCheckItems.Count == 0)
+                throw new InvalidOperationException("自检没有产生任何结果。");
+        }
+    }
+
+    private static string? GetArgValue(string[] args, string name)
+    {
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], name, StringComparison.Ordinal))
+                return args[i + 1];
+        }
+
+        return null;
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _services?.Dispose();
+        base.OnExit(e);
+    }
+
+    private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        MessageBox.Show(
+            $"发生未处理的异常：\n\n{e.Exception.Message}\n\n详情见日志目录 %LocalAppData%\\CameraControl\\logs",
+            "CameraControl",
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
+
+        e.Handled = true;
+    }
+
+    private static void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception ex)
+        {
+            MessageBox.Show(
+                $"发生未处理的异常：\n\n{ex.Message}",
+                "CameraControl",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+}

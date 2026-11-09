@@ -179,3 +179,36 @@ public sealed class FakeClock : IClock
 
     public void Advance(TimeSpan delta) => UtcNow += delta;
 }
+
+/// <summary>不做任何事的日志器（测试用，避免依赖 Infrastructure 的 Serilog）。</summary>
+public sealed class FakeAppLogger : CameraControl.Application.Diagnostics.IAppLogger
+{
+    public List<(CameraControl.Application.Diagnostics.LogLevel Level, string Message)> Entries { get; } = [];
+
+    public bool IsEnabled(CameraControl.Application.Diagnostics.LogLevel level) => true;
+
+    public void Log(
+        CameraControl.Application.Diagnostics.LogLevel level,
+        string message,
+        IReadOnlyDictionary<string, object?>? fields = null) => Entries.Add((level, message));
+}
+
+/// <summary>可控健康探针。</summary>
+public sealed class FakeHealthProbe : CameraControl.Application.Diagnostics.IHealthProbe
+{
+    private readonly Func<CameraControl.Application.Diagnostics.HealthItem> _factory;
+
+    public FakeHealthProbe(string name, Func<CameraControl.Application.Diagnostics.HealthItem> factory)
+    {
+        Name = name;
+        _factory = factory;
+    }
+
+    public string Name { get; }
+
+    public Task<CameraControl.Application.Diagnostics.HealthItem> RunAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(_factory());
+
+    /// <summary>构造一个会抛异常的探针。</summary>
+    public static FakeHealthProbe Throwing(string name) => new(name, () => throw new InvalidOperationException("探针炸了"));
+}

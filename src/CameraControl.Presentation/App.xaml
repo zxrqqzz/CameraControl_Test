@@ -1,0 +1,34 @@
+<Application x:Class="CameraControl.Presentation.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="clr-namespace:CameraControl.Presentation.Services">
+    <Application.Resources>
+
+        <svc:NullToCollapsedConverter x:Key="NullToCollapsed" />
+        <svc:NullToVisibleConverter x:Key="NullToVisible" />
+        <svc:EmptyToCollapsedConverter x:Key="EmptyToCollapsed" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <!-- 统一配色 -->
+        <SolidColorBrush x:Key="AccentBrush" Color="#FF2D7FF9" />
+        <SolidColorBrush x:Key="MutedBrush" Color="#FF888888" />
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#FFF7F7F7" />
+        <SolidColorBrush x:Key="BorderBrushSoft" Color="#FFE0E0E0" />
+        <SolidColorBrush x:Key="DangerBrush" Color="#FFB03030" />
+        <SolidColorBrush x:Key="WarnBrush" Color="#FFD9822B" />
+
+        <!-- 行样式：ListBox + Grid 行模板（不用 GridView，避免列头加载光标临时文件） -->
+        <Style x:Key="RowBorderStyle" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrushSoft}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="10,7" />
+        </Style>
+
+        <Style x:Key="ToolButtonStyle" TargetType="Button">
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="MinWidth" Value="76" />
+        </Style>
+
+    </Application.Resources>
+</Application>

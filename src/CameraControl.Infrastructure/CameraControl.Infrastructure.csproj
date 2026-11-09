@@ -6,6 +6,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Serilog" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\CameraControl.Domain\CameraControl.Domain.csproj" />
     <ProjectReference Include="..\CameraControl.Application\CameraControl.Application.csproj" />
   </ItemGroup>

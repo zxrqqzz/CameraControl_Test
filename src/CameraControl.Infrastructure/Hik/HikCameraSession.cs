@@ -14,7 +14,17 @@ namespace CameraControl.Infrastructure.Hik;
 /// </summary>
 public sealed class HikCameraSession : ICameraSession
 {
+    /// <summary>
+    /// SDK 帧队列深度。
+    /// TODO-REALDATA: 5 是**经验值，未用真实相机压测**。太小会丢帧，太大增加延迟与内存占用。
+    /// </summary>
     private const uint ImageNodeNum = 5;
+
+    /// <summary>
+    /// 单帧采集默认超时。
+    /// TODO-REALDATA: 3000ms 是**经验值，未用真实相机实测**。需覆盖曝光 + 传输 + 主机调度；
+    /// GigE 长曝光或大分辨率场景可能不足，短曝光相机则可显著收紧。
+    /// </summary>
     private const int DefaultCaptureTimeoutMs = 3000;
 
     private readonly IDevice _device;

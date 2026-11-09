@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# 公开测试数据集（不入库，见 docs/09 的下载地址与校验值）
+testdata/
+

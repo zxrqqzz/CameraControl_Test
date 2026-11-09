@@ -22,6 +22,12 @@ public sealed record CaptureGroupRequest(
     ExposureProfile? Exposure = null,
     bool ArmFirst = false)
 {
+    /// <summary>
+    /// 默认整组采集超时（毫秒）。
+    /// TODO-REALDATA: 3000ms 是**经验值，未用真实相机实测**。实际应覆盖
+    /// "就绪门耗时 + 触发延迟 + 最长曝光 + 传输时间"，海康 GigE 大分辨率下可能不够。
+    /// 真实数据到手后应改为可配置并给出实测依据。验证后移除本标记。
+    /// </summary>
     public const int DefaultTimeoutMs = 3000;
 
     public TimeSpan EffectiveTimeout => Timeout ?? TimeSpan.FromMilliseconds(DefaultTimeoutMs);

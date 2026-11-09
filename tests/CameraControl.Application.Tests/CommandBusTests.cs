@@ -1,5 +1,6 @@
 using CameraControl.Application.Auditing;
 using CameraControl.Application.Commands;
+using CameraControl.Application.Diagnostics;
 using CameraControl.Application.Tests.Fakes;
 using CameraControl.Domain.Capture;
 using Xunit;
@@ -66,7 +67,13 @@ public sealed class CommandBusTests
         registry.Register(echo).Register(robot);
 
         var audit = new InMemoryAuditLog();
-        var bus = new CommandBus(registry, new DefaultRiskPolicy(), audit, new FakeClock());
+        var bus = new CommandBus(
+            registry,
+            new DefaultRiskPolicy(),
+            audit,
+            new FakeClock(),
+            new InMemoryMetrics(),
+            new FakeAppLogger());
         return (bus, audit, echo, robot);
     }
 

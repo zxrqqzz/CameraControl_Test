@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>CameraControl.Tools.Capabilities</RootNamespace>
+    <AssemblyName>Capabilities</AssemblyName>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CameraControl.Composition\CameraControl.Composition.csproj" />
+  </ItemGroup>
+
+</Project>

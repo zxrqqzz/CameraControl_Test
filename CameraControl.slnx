@@ -4,6 +4,7 @@
   <Project Path="src/CameraControl.Application/CameraControl.Application.csproj" />
   <Project Path="src/CameraControl.Infrastructure/CameraControl.Infrastructure.csproj" />
   <Project Path="src/CameraControl.Composition/CameraControl.Composition.csproj" />
+  <Project Path="src/CameraControl.Presentation/CameraControl.Presentation.csproj" />
 
   <!-- 测试 -->
   <Project Path="tests/CameraControl.Domain.Tests/CameraControl.Domain.Tests.csproj" />
@@ -11,4 +12,7 @@
 
   <!-- 工具 -->
   <Project Path="tools/CameraControl.Tools.BurstAnalyzer/CameraControl.Tools.BurstAnalyzer.csproj" />
+  <Project Path="tools/CameraControl.Tools.Capabilities/CameraControl.Tools.Capabilities.csproj" />
+  <Project Path="tools/CameraControl.Tools.Agent/CameraControl.Tools.Agent.csproj" />
+  <Project Path="tools/CameraControl.Tools.CalibCheck/CameraControl.Tools.CalibCheck.csproj" />
 </Solution>

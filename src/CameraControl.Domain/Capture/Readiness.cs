@@ -32,7 +32,12 @@ public sealed record ReadinessCriteria(
     ReadinessSource Source = ReadinessSource.VisionBased,
     TimeSpan? FixedDelay = null)
 {
-    /// <summary>P0 占位：固定延时门。诚实占位，不伪装成振动判定。</summary>
+    /// <summary>
+    /// P0 占位：固定延时门。诚实占位，不伪装成振动判定。
+    /// TODO-REALDATA: 默认 2000ms 超时与调用方传入的固定延时都**未经真实工位验证**。
+    /// 真实可用的就绪判据必须来自 BurstAnalyzer 实测的衰减曲线（P2 的 VisionStabilityGate）。
+    /// 验证后移除本标记。
+    /// </summary>
     public static ReadinessCriteria FixedDelayPlaceholder(TimeSpan delay, TimeSpan? timeout = null) =>
         new(
             MaxAmplitude: double.NaN,
