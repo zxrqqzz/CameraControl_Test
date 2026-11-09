@@ -39,11 +39,39 @@ public sealed class RefiningCalibrator : ICameraCalibrator
         IReadOnlyList<Point3> ObjectPoints,
         IReadOnlyList<Point2> ImagePoints);
 
+    /// <summary>已知位姿（例如手眼场景由机器人提供）。</summary>
+    public sealed record PoseGuess(double[,] Rotation, double[] Translation);
+
+    /// <summary>常规标定：位姿由单应分解估计并迭代优化。</summary>
     public IntrinsicsSolveResult Solve(
         IReadOnlyList<CalibrationView> views,
         ChessboardSpec spec,
         int imageWidth,
-        int imageHeight)
+        int imageHeight) =>
+        SolveCore(views, spec, imageWidth, imageHeight, fixedPoses: null);
+
+    /// <summary>
+    /// 给定位姿的标定：**不再估计/优化位姿**，只优化相机参数。
+    ///
+    /// 用途：① 手眼标定场景机器人位姿已知；② 隔离诊断"位姿估计 vs 参数优化"的缺陷来源。
+    /// </summary>
+    public IntrinsicsSolveResult SolveWithPoses(
+        IReadOnlyList<CalibrationView> views,
+        ChessboardSpec spec,
+        int imageWidth,
+        int imageHeight,
+        IReadOnlyList<PoseGuess> fixedPoses)
+    {
+        ArgumentNullException.ThrowIfNull(fixedPoses);
+        return SolveCore(views, spec, imageWidth, imageHeight, fixedPoses);
+    }
+
+    private IntrinsicsSolveResult SolveCore(
+        IReadOnlyList<CalibrationView> views,
+        ChessboardSpec spec,
+        int imageWidth,
+        int imageHeight,
+        IReadOnlyList<PoseGuess>? fixedPoses)
     {
         ArgumentNullException.ThrowIfNull(views);
         ArgumentNullException.ThrowIfNull(spec);
@@ -77,11 +105,34 @@ public sealed class RefiningCalibrator : ICameraCalibrator
         Pose?[] poses = new Pose?[usable.Count];
         double previousCost = double.MaxValue;
 
-        for (int outer = 0; outer < MaxOuterIterations; outer++)
+        // 分阶段放开参数：先只估内参，再逐个放开畸变系数。
+        //
+        // 为什么必须分阶段：焦距与径向畸变在数学上强耦合（都能把四周像素"拉"进来），
+        // 一次性放开 9 个参数很容易掉进"焦距偏大 + k 偏负"的谷底出不来。
+        // 分阶段相当于给优化器一条连续的路。
+        int[][] stages =
+        [
+            [0, 1, 2, 3],                    // fx, fy, cx, cy
+            [0, 1, 2, 3, 4],                 // + k1
+            [0, 1, 2, 3, 4, 5],              // + k2
+            [0, 1, 2, 3, 4, 5, 6, 7],        // + p1, p2
+            [0, 1, 2, 3, 4, 5, 6, 7, 8]      // + k3
+        ];
+
+        foreach (int[] active in stages)
         {
+            for (int outer = 0; outer < MaxOuterIterations; outer++)
+            {
             // ── a. 固定参数，估计每个视角的位姿 ──────────
             for (int i = 0; i < usable.Count; i++)
             {
+                if (fixedPoses is not null)
+                {
+                    // 已知位姿：完全不动位姿
+                    poses[i] = new Pose(fixedPoses[i].Rotation, [.. fixedPoses[i].Translation]);
+                    continue;
+                }
+
                 Pose? estimated = EstimatePose(usable[i], parameters)
                                   ?? (outer > 0 ? poses[i] : null);
 
@@ -108,18 +159,19 @@ public sealed class RefiningCalibrator : ICameraCalibrator
                 return init with { Diagnostics = diagnostics };
             }
 
-            // ── b. 固定位姿，LM 优化参数 ──────────────────
-            double cost = OptimizeParameters(usable, poses!, parameters, imageWidth, imageHeight);
+                // ── b. 固定位姿，LM 优化（仅活跃参数）──────────
+                double cost = OptimizeParameters(
+                    usable, poses!, parameters, imageWidth, imageHeight, active);
 
-            if (!double.IsFinite(cost))
-            {
-                diagnostics.Add("精化过程中数值异常，保留上一步结果。");
-                break;
+                if (!double.IsFinite(cost))
+                {
+                    diagnostics.Add("精化过程中数值异常，保留上一步结果。");
+                    break;
+                }
+
+                if (Math.Abs(previousCost - cost) < 1e-10) break;
+                previousCost = cost;
             }
-
-            // 收敛判定：cost 是均方误差，变化小于 1e-10 px² 即停
-            if (Math.Abs(previousCost - cost) < 1e-10) break;
-            previousCost = cost;
         }
 
         if (!IsPlausible(parameters, imageWidth, imageHeight))
@@ -437,8 +489,12 @@ public sealed class RefiningCalibrator : ICameraCalibrator
         Pose?[] poses,
         double[] parameters,
         int width,
-        int height)
+        int height,
+        IReadOnlyList<int>? active = null)
     {
+        int[] indices = active is null ? [.. Enumerable.Range(0, ParameterCount)] : [.. active];
+        int dof = indices.Length;
+
         double damping = 1e-3;
         double cost = ComputeCost(views, poses, parameters);
 
@@ -448,30 +504,28 @@ public sealed class RefiningCalibrator : ICameraCalibrator
             double[] residuals = BuildResiduals(views, poses, parameters);
 
             int rows = residuals.Length;
-            var normal = new double[ParameterCount, ParameterCount];
-            var gradient = new double[ParameterCount];
+            var normal = new double[dof, dof];
+            var gradient = new double[dof];
 
             for (int r = 0; r < rows; r++)
             {
-                for (int a = 0; a < ParameterCount; a++)
+                for (int a = 0; a < dof; a++)
                 {
-                    double ja = jacobian[r, a];
+                    double ja = jacobian[r, indices[a]];
                     if (ja == 0) continue;
 
                     gradient[a] += ja * residuals[r];
 
-                    for (int b = a; b < ParameterCount; b++)
-                        normal[a, b] += ja * jacobian[r, b];
+                    for (int b = a; b < dof; b++)
+                        normal[a, b] += ja * jacobian[r, indices[b]];
                 }
             }
 
-            // 对称化
-            for (int a = 0; a < ParameterCount; a++)
+            for (int a = 0; a < dof; a++)
                 for (int b = 0; b < a; b++)
                     normal[a, b] = normal[b, a];
 
-            // 阻尼
-            for (int a = 0; a < ParameterCount; a++)
+            for (int a = 0; a < dof; a++)
                 normal[a, a] += damping * Math.Max(normal[a, a], 1e-9);
 
             double[] rhs = [.. gradient.Select(g => -g)];
@@ -484,8 +538,8 @@ public sealed class RefiningCalibrator : ICameraCalibrator
                 continue;
             }
 
-            var candidate = new double[ParameterCount];
-            for (int a = 0; a < ParameterCount; a++) candidate[a] = parameters[a] + delta[a];
+            var candidate = (double[])parameters.Clone();
+            for (int a = 0; a < dof; a++) candidate[indices[a]] = parameters[indices[a]] + delta[a];
 
             if (!IsPlausible(candidate, width, height))
             {

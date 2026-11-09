@@ -151,7 +151,7 @@ internal static class Program
         var closedForm = new ZhangCalibrator();
         IntrinsicsSolveResult closed = closedForm.Solve(views, spec, firstImage.Width, firstImage.Height);
 
-        var calibrator = new RefiningCalibrator();
+        var calibrator = new BundleAdjustmentCalibrator();
         IntrinsicsSolveResult result = calibrator.Solve(views, spec, firstImage.Width, firstImage.Height);
 
         Console.WriteLine();
@@ -251,19 +251,31 @@ internal static class Program
             const ChessboardFlags flags =
                 ChessboardFlags.AdaptiveThresh | ChessboardFlags.NormalizeImage | ChessboardFlags.FastCheck;
 
-            if (!Cv2.FindChessboardCorners(mat, new OpenCvSharp.Size(cols, rows), out Point2f[] corners, flags))
-                return null;
+            if (Cv2.FindChessboardCorners(mat, new OpenCvSharp.Size(cols, rows), out Point2f[] corners, flags)
+                && corners.Length == cols * rows)
+            {
+                Cv2.CornerSubPix(
+                    mat,
+                    corners,
+                    new OpenCvSharp.Size(5, 5),
+                    new OpenCvSharp.Size(-1, -1),
+                    new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.Count, 30, 0.01));
 
-            if (corners.Length != cols * rows) return null;
+                return corners;
+            }
 
-            Cv2.CornerSubPix(
-                mat,
-                corners,
-                new OpenCvSharp.Size(5, 5),
-                new OpenCvSharp.Size(-1, -1),
-                new TermCriteria(CriteriaTypes.Eps | CriteriaTypes.Count, 30, 0.01));
+            // 第二选择：SB（segment-based）检测器，对模糊/低对比/强畸变更鲁棒
+            if (Cv2.FindChessboardCornersSB(
+                    mat,
+                    new OpenCvSharp.Size(cols, rows),
+                    out Point2f[] sbCorners,
+                    ChessboardFlags.None)
+                && sbCorners.Length == cols * rows)
+            {
+                return sbCorners;
+            }
 
-            return corners;
+            return null;
         }
         catch (Exception)
         {

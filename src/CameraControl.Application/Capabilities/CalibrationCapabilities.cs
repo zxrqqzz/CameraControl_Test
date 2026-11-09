@@ -70,7 +70,13 @@ public sealed record CalibrationDto(
     DateTimeOffset SolvedAtUtc,
     string GridDescription,
     string? Note,
-    string DistortionNote);
+    string DistortionNote,
+    double K1,
+    double K2,
+    double P1,
+    double P2,
+    double K3,
+    double? ReprojectionRmsePx);
 
 /// <summary>标定结果读取实现。</summary>
 public sealed class CalibrationGetCapability : ICapabilityHandler<CalibrationGetCommand>
@@ -122,7 +128,13 @@ public sealed class CalibrationGetCapability : ICapabilityHandler<CalibrationGet
         record.SolvedAtUtc,
         record.GridDescription,
         record.Note,
-        record.DistortionNote);
+        record.DistortionNote,
+        record.Distortion?.K1 ?? 0,
+        record.Distortion?.K2 ?? 0,
+        record.Distortion?.P1 ?? 0,
+        record.Distortion?.P2 ?? 0,
+        record.Distortion?.K3 ?? 0,
+        record.ReprojectionRmsePx);
 }
 
 /// <summary>标定结果列表实现。</summary>
@@ -323,7 +335,13 @@ public sealed class CalibrationSolveCapability : ICapabilityHandler<CalibrationS
             HomographyRmsePx: result.HomographyRmsePx,
             SolvedAtUtc: _clock.UtcNow,
             GridDescription: $"{command.GridCols}x{command.GridRows}@{command.SquareMm}mm",
-            Note: command.Note);
+            Note: command.Note,
+            Distortion: result.Distortion,
+            ReprojectionRmsePx: result.ReprojectionRmsePx,
+            DistortionNote: result.Distortion is null
+                ? "未估计畸变（闭合解）。"
+                : $"已估计畸变 k1={result.Distortion.K1:F4} k2={result.Distortion.K2:F4} " +
+                  $"k3={result.Distortion.K3:F4}；重投影 RMSE {result.ReprojectionRmsePx:F3}px。");
 
         await _store.SaveAsync(record, cancellationToken).ConfigureAwait(false);
 

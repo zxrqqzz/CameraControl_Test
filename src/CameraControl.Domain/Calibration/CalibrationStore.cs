@@ -21,7 +21,9 @@ public sealed record CalibrationRecord(
     DateTimeOffset SolvedAtUtc,
     string GridDescription,
     string? Note = null,
-    string DistortionNote = "未估计畸变（闭合解）；广角/鱼眼镜头结果不可直接使用。")
+    string DistortionNote = "未估计畸变（闭合解）；广角/鱼眼镜头结果不可直接使用。",
+    DistortionModel? Distortion = null,
+    double? ReprojectionRmsePx = null)
 {
     /// <summary>是否已标定。</summary>
     public bool IsValid => Intrinsics.Fx > 0 && Intrinsics.Fy > 0;

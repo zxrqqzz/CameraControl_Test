@@ -99,8 +99,16 @@ public sealed class ZhangCalibrator : ICameraCalibrator
                 [CalibrationErrorCodes.Degenerate]);
         }
 
-        double v0 = (b12 * b13 - b11 * b23) / denominator;
-        double lambda = b33 - ((b13 * b13) + (v0 * (b12 * b13 - b11 * b23))) / b11;
+        // 强制零倾斜（与 OpenCV 的相机模型一致）。
+        //
+        // 为什么：真实相机的像素近似矩形（倾斜≈0），若把 skew 也当自由参数，
+        // 噪声会被 skew 吸收并把主点 cx 带偏——实测本数据集 cx 因此偏大约 23px。
+        // 零倾斜下 B 只有 5 个自由度，主点可直接由比例得到：
+        //   cx = -B13 / B11，cy = -B23 / B22（尺度自动抵消）
+        _ = b12;
+
+        // 零倾斜下 λ = B33 − B13²/B11 − B23²/B22（这一项漏了会让 λ 偏大、焦距跟着偏大）
+        double lambda = b33 - ((b13 * b13) / b11) - ((b23 * b23) / b22);
 
         if (lambda / b11 <= 0 || (lambda * b11) / denominator <= 0)
         {
@@ -111,9 +119,8 @@ public sealed class ZhangCalibrator : ICameraCalibrator
 
         double fx = Math.Sqrt(lambda / b11);
         double fy = Math.Sqrt((lambda * b11) / denominator);
-        double skew = -b12 * fx * fx * fy / lambda;
-        double cx = (skew * v0 / fy) - (b13 * fx * fx / lambda);
-        double cy = v0;
+        double cx = -b13 * fx * fx / lambda;
+        double cy = -b23 / b22;
 
         if (!double.IsFinite(fx) || !double.IsFinite(fy) || !double.IsFinite(cx) || !double.IsFinite(cy)
             || fx <= 0 || fy <= 0)

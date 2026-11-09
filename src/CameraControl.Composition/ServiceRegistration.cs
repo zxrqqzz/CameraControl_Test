@@ -103,9 +103,9 @@ public static class ServiceRegistration
         services.AddSingleton<ICameraSessionRegistry, CameraSessionRegistry>();
         services.AddSingleton<ICaptureGroupService, CaptureGroupService>();
         services.AddSingleton<IRiskPolicy, DefaultRiskPolicy>();
-                // 精化器（RefiningCalibrator）尚未通过合成数据验证，默认仍用闭合解。
-        // 详见 docs/09-真实数据验证.md。验证通过后把下一行换成 RefiningCalibrator。
-        services.AddSingleton<Domain.Calibration.ICameraCalibrator, Domain.Calibration.ZhangCalibrator>();
+                // 联合 BA（相机参数 + 全部位姿一起优化）已通过合成数据验证；
+        // 交替优化器 RefiningCalibrator 仍有缺陷，这里改用 BA。详见 docs/09。
+        services.AddSingleton<Domain.Calibration.ICameraCalibrator, Domain.Calibration.BundleAdjustmentCalibrator>();
 
         // ── 自检探针（新增检查项只需再加一个 IHealthProbe）──────
         services.AddSingleton<IHealthProbe, ElevationProbe>();
