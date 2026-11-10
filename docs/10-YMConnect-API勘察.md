@@ -195,3 +195,105 @@ file_interface_*（作业文件上下载）
 - 在没有机器人的情况下，**API 面已经可以完全摸清**（元数据 + 导出表）；
 - 摸清之后，适配器的结构与 `IRobot` 的映射关系是确定的（见 3.3 的伪代码）；
 - 避免"先写代码再对文档"导致的大面积返工。
+
+---
+
+## 七、适配器已实现（依据官方 C# 参考）
+
+数据来源：[developer.motoman.com/en/YMConnect](https://developer.motoman.com/en/YMConnect) 的
+C# 参考（Quick Start / Interfaces / MotionManager / FaultInterface / DataStructures），
+以及旧项目实跑代码。**不是推测。**
+
+### 7.1 确认下来的 API
+
+| 用途 | 签名 |
+|---|---|
+| 连接（官方简版） | `static MotomanController OpenConnection(string ip, out StatusInfo status)` |
+| 连接（带超时，旧项目用） | `OpenConnection(string ip, out StatusInfo status, int receiveTimeoutMs, int sendRetries, bool)` |
+| 断开 | `CloseConnection()` |
+| 读位置 | `ControlGroup.ReadPositionData(ControlGroupId, CoordinateType, index, specifier, out PositionData)` |
+| 笛卡尔→关节 | `Kinematics.ConvertPositionFromCartesian(ControlGroupId, PositionData, KinematicConversions, KinematicType, double[] prevAngle, out PositionData)` |
+| 报警 | `Faults.GetActiveAlarms(out ActiveAlarms)` / `GetAlarmHistory(AlarmCategory, uint, out AlarmHistory)` / `ClearAllFaults()` |
+| 伺服/Hold | `ControlCommands.SetServos(SignalStatus.ON)` / `SetHold(SignalStatus.OFF)` |
+| 清轨迹 | `MotionManager.ClearAllTrajectory()` |
+| 加轨迹点 | `MotionManager.AddPointToTrajectory(Motion)`（另有 2/3/4 组同动重载） |
+| 启动/停止 | `MotionManager.MotionStart()` / `MotionStop(bool clearTrajectory)` |
+| 到位判断 | `MotionManager.GetRemainingStepsInTrajectory(out int remaining)` |
+| 运动构造 | `new LinearMotion(ControlGroupId, PositionData, double speed, int accuracy)` **（1.1.10 实际为 4 参、第 4 为 int；文档示例写的是 MotionAccelDecel，与库不符）** |
+
+### 7.2 官方明确的使用约束（必须遵守）
+
+1. **MotionManager 仅 YRC1000 及更新控制器可用**（DX100/FS100 没有）
+2. 使用运动前**控制器参数 `S2C425` 必须为 0**
+3. 运动前需要：**伺服 ON**、**Hold OFF**、示教器处于**远程模式**
+4. 轨迹语义：`AddPointToTrajectory` 不会立刻动；`MotionStart` 后才执行；
+   若轨迹已空但未 `MotionStop`，再添加点会立即运动
+5. 欧拉角为 **ZYX 内在（roll, pitch, yaw）** —— 与本项目 `Transform3D.EulerConvention.Zyx` 一致
+
+### 7.3 实现位置
+
+| 文件 | 内容 |
+|---|---|
+| `Infrastructure/YmConnect/RobotSettings.cs` | 配置模型 + 存储（IP / 速度 / 超时 / 重试） |
+| `Infrastructure/YmConnect/YmConnectRobot.cs` | `IRobot` 实现：连接复用、读位姿、报警、轨迹式运动、停止 |
+| `Composition/ServiceRegistration.cs` | `IRobot` 已切换为 `YmConnectRobot` |
+
+`GetStateAsync` / `MoveToAsync` / `StopAsync` 的行为：
+
+- **未配置 IP** → 返回明确的"未配置"，不联网、不抛异常
+- 连接失败 → 错误信息里带 `StatusCode` 与四项排查清单
+- 运动 → 清轨迹 → 加点 → 伺服 ON / Hold OFF → MotionStart → 轮询剩余步数 → 到位或超时（超时会下发停止）
+- 停止 → `MotionStop(clearTrajectory: true)`，异常吞掉（急停路径不级联失败）
+
+### 7.4 配置方式
+
+配置文件：`%LocalAppData%\CameraControl\robot.json`
+
+```json
+{
+  "Ip": "192.168.1.31",
+  "SpeedMmPerSec": 25,
+  "ReceiveTimeoutMs": 3000,
+  "SendRetries": 3
+}
+```
+
+> 端口由 YCP 协议固定，**只需 IP**。
+
+### 7.5 已验证（无需真机）
+
+| 项 | 结果 |
+|---|---|
+| 托管库可引用、签名匹配 | ✅ 编译通过 |
+| **amd64 原生库可被加载** | ✅ 用 127.0.0.1 触发真实连接尝试，未出现 `DllNotFound` / `BadImageFormat` |
+| 未配置 IP 的降级行为 | ✅ 返回"未配置"，不联网 |
+| 配置读写 | ✅ 7 个单元测试 |
+
+### 7.6 TODO-实测（现场必须核对）
+
+代码里已用 `TODO-实测` 标注，逐条：
+
+| # | 待核对 | 当前取法 | 错了会怎样 |
+|---|---|---|---|
+| 1 | 欧拉角方向（ZYX 的分量顺序） | 直接透传 Rx/Ry/Rz | 姿态整体偏转，位置对但角度错 |
+| 2 | `LinearMotion` 第 4 个 int 的含义 | 取 `0`（按"精确到点"理解） | 可能变成混合运动或报参数错 |
+| 3 | `SetServos` / `SetHold` 在远程模式下是否允许 | 无条件调用，失败只记日志 | 运动被 8015(254/253) 拒绝，但错误码会如实上报 |
+| 4 | `ReadPositionData` 的 index/specifier 语义 | 非用户坐标系传 0（沿用旧项目） | 读到错误坐标系的位姿 |
+| 5 | `ActiveAlarms` 的结构化成员 | 先用 `ToString()`（官方示例亦如此） | 报警信息只有文本，无法结构化判断 |
+| 6 | 控制器是否 YRC1000+ 且 `S2C425=0` | 未做前置检查 | 运动接口直接不可用，报 8015 |
+
+> 第 6 条建议现场第一步就确认：控制器型号 + `S2C425` 参数。
+
+### 7.7 与旧项目的差异
+
+| | 旧项目 | 现在 |
+|---|---|---|
+| 连接 / 读位置 / 坐标换算 | ✅ 已实现 | ✅ 已迁移 |
+| **运动** | ❌ 只有 TODO | ✅ 已实现（轨迹式） |
+| 报警读取 | ❌ 无 | ✅ 有（文本级） |
+| 伺服 / Hold 控制 | ❌ 无 | ✅ 运动前自动处理 |
+
+### 7.8 一个重要提醒
+
+旧项目注释指出 `StatusInfo.IsOk()` 在 1.1.10 里**判断方向相反**。
+官方文档未提这一点。适配器**一律用 `StatusCode == 0`** 判断，不复用 `IsOk()`。

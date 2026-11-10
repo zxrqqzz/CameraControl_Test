@@ -107,3 +107,27 @@ public sealed class UnavailableRobot : IRobot
     public Task StopAsync(CancellationToken cancellationToken) =>
         Task.CompletedTask;
 }
+/// <summary>
+/// 机器人软限位校验（工作空间保护）。
+///
+/// 为什么放在领域层：这是**安全语义**，不属于某个具体适配器；
+/// 不同适配器/配置都能提供实现，能力层只认"通过/越界"。
+/// </summary>
+public interface IRobotSafetyLimits
+{
+    /// <summary>是否配置了任何限位。</summary>
+    bool HasLimits { get; }
+
+    /// <summary>校验一个位姿；返回空数组表示通过。</summary>
+    IReadOnlyList<string> Validate(RobotPose pose);
+}
+
+/// <summary>不限制（默认实现：未配置限位时使用）。</summary>
+public sealed class UnlimitedRobotSafetyLimits : IRobotSafetyLimits
+{
+    private static readonly string[] None = [];
+
+    public bool HasLimits => false;
+
+    public IReadOnlyList<string> Validate(RobotPose pose) => None;
+}

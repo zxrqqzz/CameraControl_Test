@@ -8,6 +8,7 @@ using CameraControl.Composition;
 using CameraControl.Domain.Ports;
 using CameraControl.Presentation.Services;
 using CameraControl.Presentation.ViewModels;
+using CameraControl.Application.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CameraControl.Presentation;
@@ -231,30 +232,85 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _services?.Dispose();
+        // 退出时的释放一律不得再抛：此时用户已经在关程序，
+        // 抛异常只会变成"关不掉"或关停崩溃弹窗。
+        try
+        {
+            _services?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            LogUnhandled(ex);
+        }
+
         base.OnExit(e);
     }
 
-    private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    /// <summary>
+    /// 已弹过错误框的标记。
+    ///
+    /// 为什么要它：绑定类错误会**按数据项重复触发**——曾导致"点刷新后弹出一叠错误框"。
+    /// 只弹第一次，其余仅记日志。
+    /// </summary>
+    private static bool _errorDialogShown;
+
+    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        MessageBox.Show(
-            $"发生未处理的异常：\n\n{e.Exception.Message}\n\n详情见日志目录 %LocalAppData%\\CameraControl\\logs",
-            "CameraControl",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+        LogUnhandled(e.Exception);
+
+        if (!_errorDialogShown)
+        {
+            _errorDialogShown = true;
+
+            string detail = e.Exception.InnerException is { } inner
+                ? $"{e.Exception.Message}\n\n{inner.Message}"
+                : e.Exception.Message;
+
+            MessageBox.Show(
+                $"发生未处理的异常：\n\n{detail}\n\n" +
+                "（后续同类错误不再弹窗，仅写入日志。）\n\n" +
+                "详情见目录 %LocalAppData%\\CameraControl\\logs",
+                "CameraControl",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
 
         e.Handled = true;
     }
 
-    private static void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    private void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
     {
-        if (e.ExceptionObject is Exception ex)
+        if (e.ExceptionObject is not Exception ex) return;
+
+        LogUnhandled(ex);
+
+        if (_errorDialogShown) return;
+
+        _errorDialogShown = true;
+
+        MessageBox.Show(
+            $"发生未处理的异常：\n\n{ex.Message}",
+            "CameraControl",
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
+    }
+
+    /// <summary>把未处理异常写进日志（含内部异常与堆栈），记日志本身不得再抛。</summary>
+    private void LogUnhandled(Exception exception)
+    {
+        try
         {
-            MessageBox.Show(
-                $"发生未处理的异常：\n\n{ex.Message}",
-                "CameraControl",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+            _services?.GetService<IAppLogger>()?.Error("未处理的异常", new Dictionary<string, object?>
+            {
+                ["type"] = exception.GetType().FullName,
+                ["message"] = exception.Message,
+                ["inner"] = exception.InnerException?.Message,
+                ["stack"] = exception.StackTrace
+            });
+        }
+        catch
+        {
+            // 记录失败不能级联
         }
     }
 }

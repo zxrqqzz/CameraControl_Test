@@ -68,7 +68,8 @@ public sealed partial class MainViewModel : ObservableObject
         IMetrics metrics,
         IAuditLog audit,
         IAiAgent agent,
-        LlmSettingsStore llmSettings)
+        LlmSettingsStore llmSettings,
+        CameraControl.Application.Commands.ICommandBus bus)
     {
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentNullException.ThrowIfNull(sessions);
@@ -78,6 +79,7 @@ public sealed partial class MainViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(audit);
         ArgumentNullException.ThrowIfNull(agent);
         ArgumentNullException.ThrowIfNull(llmSettings);
+        ArgumentNullException.ThrowIfNull(bus);
 
         _provider = provider;
         _sessions = sessions;
@@ -88,8 +90,13 @@ public sealed partial class MainViewModel : ObservableObject
         _agent = agent;
         _llmSettings = llmSettings;
 
+        Calibration = new CalibrationPanelViewModel(bus);
+
         LoadAiSettings();
     }
+
+    /// <summary>标定面板（采图 → 检测 → 求解）。</summary>
+    public CalibrationPanelViewModel Calibration { get; }
 
     // ── 通用 ────────────────────────────────────────────────
 
@@ -124,6 +131,9 @@ public sealed partial class MainViewModel : ObservableObject
                 Cameras.Add(new CameraRowViewModel(descriptor));
 
             SelectedCamera ??= Cameras.FirstOrDefault(c => c.CanCapture);
+
+            Calibration.SyncCameras(Cameras);
+            Calibration.SelectedCamera ??= SelectedCamera;
 
             Status = devices.Count == 0
                 ? "未发现相机。请确认相机已上电、网线已连接、MVS 客户端已安装。"

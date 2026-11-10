@@ -24,4 +24,16 @@
     </Reference>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 安川 Motoman 通讯库（托管封装 + amd64 原生库） -->
+    <Reference Include="YMConnect_CS">
+      <HintPath>..\..\third_party\ymconnect\YMConnect_CS.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <None Include="..\..\third_party\ymconnect\YMConnect.dll">
+      <Link>YMConnect.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

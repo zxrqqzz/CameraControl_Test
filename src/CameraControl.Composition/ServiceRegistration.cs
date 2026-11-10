@@ -1,6 +1,7 @@
 using CameraControl.Application.Auditing;
 using CameraControl.Application.Capabilities;
 using CameraControl.Application.Capture;
+using CameraControl.Application.Comm;
 using CameraControl.Application.Commands;
 using CameraControl.Application.Cua;
 using CameraControl.Application.Diagnostics;
@@ -20,6 +21,7 @@ using CameraControl.Infrastructure.Readiness;
 using CameraControl.Infrastructure.Storage;
 using CameraControl.Infrastructure.Triggers;
 using CameraControl.Infrastructure.Uvc;
+using CameraControl.Infrastructure.YmConnect;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
@@ -95,12 +97,31 @@ public static class ServiceRegistration
         // P0/P1 就绪门为固定延时占位；P2 换 VisionStabilityGate
         services.AddSingleton<IReadinessGate, FixedDelayGate>();
 
-        // ── 机器人（P5：控制器尚未接入，先给明确"未连接"的实现）────
-        // 换成真实适配器时只改这一行（如 YMConnectRobotAdapter）。
-        services.AddSingleton<IRobot>(sp => new UnavailableRobot(sp.GetRequiredService<IClock>()));
+        // ── 机器人：安川 Motoman（YMConnect）───────────────────
+        // 未配置 IP 时适配器自身会返回明确的"未连接"，不会尝试联网。
+        services.AddSingleton<RobotSettingsStore>();
+        services.AddSingleton<IRobotSafetyLimits, SettingsRobotSafetyLimits>();
+        services.AddSingleton<IDeviceAliasStore, DeviceAliasStore>();
+        services.AddSingleton<ICuaAuthorization, CuaAuthorization>();
+
+        // 标定会话（交互式采图 → 求解 → 落盘）
+        services.AddSingleton<Application.Calibration.ICalibrationSession, Application.Calibration.CalibrationSessionService>();
+        services.AddSingleton<ICalibrationStatistics, CalibrationStatisticsService>();
+        services.AddSingleton<IRobot>(sp => new YmConnectRobot(
+            sp.GetRequiredService<RobotSettingsStore>(),
+            sp.GetRequiredService<IClock>(),
+            sp.GetRequiredService<IAppLogger>()));
 
         // ── 应用层 ──────────────────────────────────────────────
         services.AddSingleton<ICameraSessionRegistry, CameraSessionRegistry>();
+        services.AddSingleton<ICaptureStatistics, CaptureStatisticsService>();
+        services.AddSingleton<ICapturePreviewService, CapturePreviewService>();
+        services.AddSingleton<IFrameEncoder, Infrastructure.Imaging.PngFrameEncoder>();
+
+        // 光源与通讯：暂未接入驱动（失败关闭，给出明确错误而不是静默成功）
+        services.AddSingleton<ILightPort, Infrastructure.Light.UnavailableLightPort>();
+        services.AddSingleton<ICommChannelFactory, Infrastructure.Light.UnavailableCommChannelFactory>();
+        services.AddSingleton<ICommManager, CommManager>();
         services.AddSingleton<ICaptureGroupService, CaptureGroupService>();
         services.AddSingleton<IRiskPolicy, DefaultRiskPolicy>();
                 // 联合 BA（相机参数 + 全部位姿一起优化）已通过合成数据验证；
@@ -122,11 +143,80 @@ public static class ServiceRegistration
         {
             var registry = new CapabilityRegistry()
                 .Register(new CaptureGroupCapability(sp.GetRequiredService<ICaptureGroupService>()))
+        .Register(new CameraOpenCapability(
+            sp.GetRequiredService<ICameraSessionRegistry>(),
+            sp.GetRequiredService<ICameraProvider>()))
+        .Register(new CameraCloseCapability(sp.GetRequiredService<ICameraSessionRegistry>()))
+        .Register(new CameraListOpenCapability(sp.GetRequiredService<ICameraSessionRegistry>()))
+        .Register(new CameraGetStatusCapability(sp.GetRequiredService<ICameraSessionRegistry>()))
+        .Register(new CaptureSingleCapability(
+            sp.GetRequiredService<ICameraSessionRegistry>(),
+            sp.GetRequiredService<ICaptureStatistics>(),
+            sp.GetRequiredService<IFrameEncoder>()))
+        .Register(new CaptureArmCapability(sp.GetRequiredService<ICameraSessionRegistry>()))
+        .Register(new CaptureDisarmCapability(sp.GetRequiredService<ICameraSessionRegistry>()))
+        .Register(new CaptureTriggerCapability(sp.GetRequiredService<ICameraSessionRegistry>()))
+        .Register(new CaptureWaitSettledCapability(sp.GetRequiredService<IReadinessGate>()))
+        .Register(new CaptureGetStatsCapability(sp.GetRequiredService<ICaptureStatistics>()))
+        .Register(new CaptureStartContinuousCapability(sp.GetRequiredService<ICapturePreviewService>()))
+        .Register(new CaptureStopContinuousCapability(sp.GetRequiredService<ICapturePreviewService>()))
+        .Register(new LightOnCapability(sp.GetRequiredService<ILightPort>()))
+        .Register(new LightOffCapability(sp.GetRequiredService<ILightPort>()))
+        .Register(new LightSetBrightnessCapability(sp.GetRequiredService<ILightPort>()))
+        .Register(new LightPulseCapability(sp.GetRequiredService<ILightPort>()))
+        .Register(new LightStrobeCapability(sp.GetRequiredService<ILightPort>()))
+        .Register(new LightGetStateCapability(sp.GetRequiredService<ILightPort>()))
+        .Register(new LightListCapability(sp.GetRequiredService<ILightPort>()))
+        .Register(new CommAddCapability(sp.GetRequiredService<ICommManager>()))
+        .Register(new CommRemoveCapability(sp.GetRequiredService<ICommManager>()))
+        .Register(new CommListCapability(sp.GetRequiredService<ICommManager>()))
+        .Register(new CommOpenCapability(sp.GetRequiredService<ICommManager>()))
+        .Register(new CommCloseCapability(sp.GetRequiredService<ICommManager>()))
+        .Register(new CommSendCapability(sp.GetRequiredService<ICommManager>()))
+        .Register(new CommGetLogCapability(sp.GetRequiredService<ICommManager>()))
+        .Register(new CaptureFrameCapability(
+            sp.GetRequiredService<ICapturePreviewService>(),
+            sp.GetRequiredService<IFrameEncoder>()))
                 .Register(new DeviceListCapability(sp.GetRequiredService<ICameraProvider>()))
                 .Register(new SystemSelfCheckCapability(sp.GetRequiredService<ISelfCheck>()))
                 .Register(new SystemGetMetricsCapability(sp.GetRequiredService<IMetrics>()))
                 .Register(new SystemGetAuditLogCapability(sp.GetRequiredService<IAuditLog>()))
-                .Register(new RobotGetStateCapability(sp.GetRequiredService<IRobot>()))
+                .Register(new DeviceGetCapability(
+            sp.GetRequiredService<ICameraProvider>(),
+            sp.GetRequiredService<IDeviceAliasStore>()))
+        .Register(new DeviceRenameCapability(sp.GetRequiredService<IDeviceAliasStore>()))
+        .Register(new SystemGetEnvironmentCapability(sp.GetRequiredService<IClock>()))
+        .Register(new SystemGetSettingsCapability())
+        .Register(new SystemExportDiagnosticsCapability())
+        .Register(new CuaGetAuthorizationModeCapability(sp.GetRequiredService<ICuaAuthorization>()))
+        .Register(new CuaStopCapability(
+            sp.GetRequiredService<ICuaAuthorization>(),
+            sp.GetRequiredService<ICapturePreviewService>()))
+        .Register(new CuaRequestElevationCapability())
+        .Register(new CalibrationDetectCornersCapability(
+            sp.GetRequiredService<ICameraSessionRegistry>(),
+            sp.GetRequiredService<Application.Calibration.ICalibrationSession>(),
+            sp.GetRequiredService<ICalibrationStatistics>()))
+        .Register(new CalibrationGetStateCapability(sp.GetRequiredService<Application.Calibration.ICalibrationSession>()))
+        .Register(new CalibrationConfigureCapability(sp.GetRequiredService<Application.Calibration.ICalibrationSession>()))
+        .Register(new CalibrationAddPointCapability(sp.GetRequiredService<Application.Calibration.ICalibrationSession>()))
+        .Register(new CalibrationRemovePointCapability(sp.GetRequiredService<Application.Calibration.ICalibrationSession>()))
+        .Register(new CalibrationResetCapability(sp.GetRequiredService<Application.Calibration.ICalibrationSession>()))
+        .Register(new CalibrationApplyCapability(
+            sp.GetRequiredService<Application.Calibration.ICalibrationSession>(),
+            sp.GetRequiredService<Domain.Calibration.ICalibrationStore>()))
+        .Register(new CalibrationExportCapability(sp.GetRequiredService<Domain.Calibration.ICalibrationStore>()))
+        .Register(new CalibrationSolveHandEyeCapability())
+        .Register(new RobotGetStateCapability(sp.GetRequiredService<IRobot>()))
+        .Register(new RobotGetPoseCapability(sp.GetRequiredService<IRobot>()))
+        .Register(new RobotMoveRelativeCapability(
+            sp.GetRequiredService<IRobot>(),
+            sp.GetRequiredService<IRobotSafetyLimits>()))
+        .Register(new RobotCheckSoftLimitCapability(
+            sp.GetRequiredService<IRobot>(),
+            sp.GetRequiredService<IRobotSafetyLimits>()))
+        .Register(new RobotGetUserFrameCapability())
+        .Register(new RobotSetUserFrameCapability())
                 .Register(new RobotStopCapability(sp.GetRequiredService<IRobot>()))
                 .Register(new RobotMoveToCapability(sp.GetRequiredService<IRobot>()))
                 .Register(new CalibrationGetCapability(sp.GetRequiredService<ICalibrationStore>()))
