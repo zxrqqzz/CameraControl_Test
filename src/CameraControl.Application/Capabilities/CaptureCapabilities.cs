@@ -82,7 +82,7 @@ public sealed record CaptureStopContinuousCommand(string CameraId) : ICommand
 }
 
 /// <summary>capture.getFrame：取连续预览的最新一帧。</summary>
-public sealed record CaptureGetFrameCommand(string CameraId, bool IncludeImage = true) : ICommand
+public sealed record CaptureGetFrameCommand(string CameraId, bool IncludeImage = true, int TimeoutMs = 1000) : ICommand
 {
     public const string Id = "capture.getFrame";
 
@@ -215,19 +215,36 @@ public sealed class CaptureFrameCapability : ICapabilityHandler<CaptureGetFrameC
         }
         """);
 
-    public Task<object?> HandleAsync(
+    public async Task<object?> HandleAsync(
         CaptureGetFrameCommand command,
         CommandContext context,
         CancellationToken cancellationToken)
     {
-        Frame? frame = _preview.Latest(new CameraId(command.CameraId));
+        var id = new CameraId(command.CameraId);
 
-        return Task.FromResult<object?>(new
+        // 刚 startContinuous 时第一帧还没到，直接返回 null 会让调用方误判为"没在预览"。
+        // 这里做一次有界等待：默认 1 秒，覆盖绝大多数相机的首帧延迟。
+        Frame? frame = _preview.Latest(id);
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+
+        if (frame is null)
+        {
+            var deadline = TimeSpan.FromMilliseconds(Math.Clamp(command.TimeoutMs, 0, 10000));
+
+            while (frame is null && waited.Elapsed < deadline)
+            {
+                await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+                frame = _preview.Latest(id);
+            }
+        }
+
+        return new
         {
             cameraId = command.CameraId,
             previewing = _preview.Active.Contains(command.CameraId),
-            frame = frame is null ? null : ToDto(frame, null, command.IncludeImage, _encoder)
-        });
+            frame = frame is null ? null : ToDto(frame, null, command.IncludeImage, _encoder),
+            waitedMs = (int)waited.ElapsedMilliseconds
+        };
     }
 
     internal static FrameDto ToDto(Frame frame, int? exposureUs, bool includeImage, IFrameEncoder encoder) =>

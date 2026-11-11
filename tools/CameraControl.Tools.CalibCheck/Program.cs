@@ -128,6 +128,46 @@ internal static class Program
             if (verbose) Console.WriteLine($"  {name,-14} 角点 {points.Length}  OK");
         }
 
+        // ── 产品内置检测器（Domain）对比 ─────────────────────
+        //
+        // 目的：标定页用的是 Domain.CornerDetector + LatticeGridBuilder，
+        // 而不是这里的 OpenCV。必须在**同一批真实图像**上量出它到底行不行，
+        // 否则标定页可能是"看起来完整、实际不可用"。
+        if (args.Contains("--domain-detect", StringComparer.Ordinal))
+        {
+            Console.WriteLine();
+            Console.WriteLine("=== 内置检测器（Domain）vs OpenCV，同一批图像 ===");
+            Console.WriteLine("  文件            Domain点阵       覆盖率    OpenCV   OpenCV点数");
+
+            int domainOk = 0;
+            int bothOk = 0;
+
+            foreach ((string name, GrayImage image) in images)
+            {
+                var candidates = Domain.Analysis.CornerDetector.Detect(image);
+                var lattice = Domain.Calibration.LatticeGridBuilder.Build(candidates);
+
+                bool domainSuccess = lattice.Ok && lattice.Grid is not null;
+                int domainPoints = lattice.Grid?.Points.Count ?? 0;
+
+                if (domainSuccess && domainPoints == cols * rows) domainOk++;
+
+                Point2f[]? corners = DetectChessboard(image, cols, rows);
+                bool openCvSuccess = corners is not null;
+
+                if (domainSuccess && domainPoints == cols * rows && openCvSuccess) bothOk++;
+
+                Console.WriteLine(
+                    $"  {name,-14} {domainPoints,5} 点  {(lattice.Ok ? "OK " : "失败"),-4} " +
+                    $"{lattice.Coverage,7:P1}  {(openCvSuccess ? "OK " : "失败"),-6} {corners?.Length ?? 0}");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"  内置检测器完整命中：{domainOk}/{images.Count}");
+            Console.WriteLine($"  两者都命中：{bothOk}/{images.Count}");
+            Console.WriteLine();
+        }
+
         int okCount = results.Count(r => r.Corners is not null);
         Console.WriteLine($"检测成功：{okCount}/{images.Count}（{rows}行×{cols}列）");
 

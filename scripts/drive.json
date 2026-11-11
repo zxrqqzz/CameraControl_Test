@@ -1,0 +1,13 @@
+[
+  { "capability": "system.getEnvironment", "arguments": {} },
+  { "capability": "device.list", "arguments": {} },
+  { "capability": "camera.open", "arguments": { "cameraId": "USB\\VID_30C9&PID_00EC&MI_00\\6&3a5c8ec3&0&0000" } },
+  { "capability": "capture.single", "arguments": { "cameraId": "USB\\VID_30C9&PID_00EC&MI_00\\6&3a5c8ec3&0&0000", "includeImage": true } },
+  { "capability": "capture.getStats", "arguments": { "cameraId": "USB\\VID_30C9&PID_00EC&MI_00\\6&3a5c8ec3&0&0000" } },
+  { "capability": "capture.startContinuous", "arguments": { "cameraId": "USB\\VID_30C9&PID_00EC&MI_00\\6&3a5c8ec3&0&0000", "fps": 15 } },
+  { "capability": "capture.getFrame", "arguments": { "cameraId": "USB\\VID_30C9&PID_00EC&MI_00\\6&3a5c8ec3&0&0000", "includeImage": true, "timeoutMs": 2000 } },
+  { "capability": "capture.stopContinuous", "arguments": { "cameraId": "USB\\VID_30C9&PID_00EC&MI_00\\6&3a5c8ec3&0&0000" } },
+  { "capability": "robot.moveTo", "arguments": { "x": 100, "y": 200, "z": 300, "rx": 0, "ry": 90, "rz": 0 }, "expectError": "CONFIRMATION_REQUIRED" },
+  { "capability": "cua.getAuthorizationMode", "arguments": {} },
+  { "capability": "camera.close", "arguments": { "cameraId": "USB\\VID_30C9&PID_00EC&MI_00\\6&3a5c8ec3&0&0000" } }
+]

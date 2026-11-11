@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CameraControl.Application.Cua;
 using CameraControl.Application.Diagnostics;
 using CameraControl.Composition;
@@ -16,7 +17,7 @@ namespace CameraControl.Tools.Agent;
 /// 安全：AI 的所有动作都经过 CommandBus 与 DefaultRiskPolicy，
 /// 物理/破坏性操作会被拒绝（返回 CONFIRMATION_REQUIRED），不会绕过。
 /// </summary>
-internal static class Program
+internal static partial class Program
 {
     private static async Task<int> Main(string[] args)
     {
@@ -32,6 +33,16 @@ internal static class Program
         // ── 配置模式 ──────────────────────────────────────────
         if (args.Contains("--configure", StringComparer.Ordinal))
             return await ConfigureAsync(settingsStore, args);
+
+        // ── 脚本回放模式（无模型，验证"外部调用能否真的动软件"）──
+        //
+        // 走的是和 LLM 完全相同的链路：
+        //   能力清单(catalog) → CommandBinder → ICommandBus → 实际动作
+        // 唯一区别是"由谁决定调用哪个能力"——这里用脚本代替模型。
+        string? replayPath = GetValue(args, "--replay");
+
+        if (replayPath is not null)
+            return await ProgramReplay.ReplayAsync(services, replayPath);
 
         // ── 运行模式 ──────────────────────────────────────────
         string? goal = GetValue(args, "--goal") ?? GetValue(args, "-g");
@@ -243,4 +254,184 @@ internal static class Program
           物理/破坏性操作会被拒绝（返回 CONFIRMATION_REQUIRED），不会绕过。
         """);
     }
+}
+/// <summary>
+/// 脚本回放：读 JSON 数组，逐条通过命令总线执行。
+///
+/// JSON 形如：
+/// [
+///   { "capability": "device.list", "arguments": {} },
+///   { "capability": "capture.single", "arguments": { "cameraId": "...", "includeImage": true } }
+/// ]
+/// </summary>
+internal static class ProgramReplay
+{
+    public static async Task<int> ReplayAsync(ServiceProvider services, string path)
+    {
+        if (!File.Exists(path))
+        {
+            Console.Error.WriteLine($"脚本文件不存在：{path}");
+            return 2;
+        }
+
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+        JsonElement steps = document.RootElement;
+
+        if (steps.ValueKind != JsonValueKind.Array)
+        {
+            Console.Error.WriteLine("脚本必须是 JSON 数组。");
+            return 2;
+        }
+
+        var bus = services.GetRequiredService<CameraControl.Application.Commands.ICommandBus>();
+        var actor = CameraControl.Application.Commands.Actor.Ai("scripted-driver", "replay");
+
+        Console.WriteLine("=== 脚本回放（与 AI 走同一条命令总线）===");
+        Console.WriteLine();
+
+        int failures = 0;
+        int index = 0;
+
+        foreach (JsonElement step in steps.EnumerateArray())
+        {
+            index++;
+
+            string capability = step.GetProperty("capability").GetString() ?? string.Empty;
+            JsonElement arguments = step.TryGetProperty("arguments", out JsonElement a)
+                ? a
+                : default;
+
+            CameraControl.Application.Commands.ICommand? command =
+                new CameraControl.Application.Cua.DefaultCommandBinder().Bind(capability, arguments, out string? bindError);
+
+            if (command is null)
+            {
+                failures++;
+                Console.WriteLine($"[{index}] {capability} → 绑定失败：{bindError}");
+                continue;
+            }
+
+            CameraControl.Application.Commands.CommandResult result =
+                await bus.ExecuteAsync(command, actor).ConfigureAwait(false);
+
+            // 允许脚本声明"这一步应该被拒绝"（例如物理动作必须人工确认），
+            // 这样风险策略的验证不会被算成失败。
+            string? expectedError = step.TryGetProperty("expectError", out JsonElement e)
+                ? e.GetString()
+                : null;
+
+            if (!result.Ok)
+            {
+                bool expected = expectedError is not null
+                    && string.Equals(expectedError, result.Error?.Code, StringComparison.Ordinal);
+
+                if (expected)
+                {
+                    Console.WriteLine(
+                        $"[{index}] {capability} → 已按预期拒绝 [{result.Error?.Code}]");
+                }
+                else
+                {
+                    failures++;
+                    Console.WriteLine(
+                        $"[{index}] {capability} → 失败 [{result.Error?.Code}] {result.Error?.Message}");
+                }
+
+                continue;
+            }
+
+            if (expectedError is not null)
+            {
+                failures++;
+                Console.WriteLine($"[{index}] {capability} → 预期拒绝但成功了（{expectedError}）");
+                continue;
+            }
+
+            Console.WriteLine($"[{index}] {capability} → OK ({result.Elapsed.TotalMilliseconds:F0} ms)");
+            PrintValue(result.Data, "       ");
+
+            // 可选：把返回的 base64 PNG 落盘，用于肉眼确认"AI 真的拿到了图"
+            string? savePng = step.TryGetProperty("savePng", out JsonElement sp) ? sp.GetString() : null;
+
+            if (savePng is not null) SavePng(result.Data, savePng);
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(failures == 0
+            ? $"全部通过（{index} 步）。软件可被外部调用驱动。"
+            : $"完成但有 {failures} 步失败（共 {index} 步）。");
+
+        return failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>把结果里的 PngBase64 写文件（显式要求才落盘，默认不存）。</summary>
+    private static void SavePng(object? value, string path)
+    {
+        try
+        {
+            string json = JsonSerializer.Serialize(value, JsonOptions);
+            using JsonDocument document = JsonDocument.Parse(json);
+
+            string? base64 = FindBase64(document.RootElement);
+
+            if (base64 is null)
+            {
+                Console.WriteLine($"       （没有 PNG 可保存：{path}）");
+                return;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+            File.WriteAllBytes(path, Convert.FromBase64String(base64));
+
+            Console.WriteLine($"       已保存 PNG：{path}（{new FileInfo(path).Length:N0} 字节）");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"       保存 PNG 失败：{ex.Message}");
+        }
+    }
+
+    /// <summary>在结果对象里找 PngBase64（可能在 frame 子对象里）。</summary>
+    private static string? FindBase64(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (JsonProperty property in element.EnumerateObject())
+            {
+                if (property.NameEquals("PngBase64") && property.Value.ValueKind == JsonValueKind.String)
+                    return property.Value.GetString();
+
+                string? nested = FindBase64(property.Value);
+                if (nested is not null) return nested;
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement item in element.EnumerateArray())
+            {
+                string? nested = FindBase64(item);
+                if (nested is not null) return nested;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>打印结果摘要（PNG 只报长度，避免刷屏）。</summary>
+    private static void PrintValue(object? value, string indent)
+    {
+        if (value is null) { Console.WriteLine($"{indent}(null)"); return; }
+
+        string text = JsonSerializer.Serialize(value, JsonOptions);
+
+        if (text.Length > 400) text = text[..400] + " …";
+
+        Console.WriteLine($"{indent}{text}");
+    }
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = false,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 }

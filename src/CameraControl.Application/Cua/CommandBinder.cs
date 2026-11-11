@@ -82,7 +82,8 @@ public sealed class DefaultCommandBinder : ICommandBinder
                 JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。")),
             CaptureGetFrameCommand.Id => new CaptureGetFrameCommand(
                 JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。"),
-                JsonArgs.GetBool(arguments, "includeImage") ?? true),
+                JsonArgs.GetBool(arguments, "includeImage") ?? true,
+                JsonArgs.GetInt(arguments, "timeoutMs") ?? 1000),
 
             // ── 光源 ────────────────────────────────────
             LightOnCommand.Id => new LightOnCommand(JsonArgs.GetInt(arguments, "channel") ?? 1),
