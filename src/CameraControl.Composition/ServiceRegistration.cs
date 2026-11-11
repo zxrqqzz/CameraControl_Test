@@ -245,23 +245,10 @@ public static class ServiceRegistration
         // ── AI / CUA ────────────────────────────────────────────
         services.AddSingleton<ISecretProtector, DpapiSecretProtector>();
         services.AddSingleton<LlmSettingsStore>();
-        services.AddSingleton<ILlmProvider>(sp =>
-        {
-            LlmSettingsStore store = sp.GetRequiredService<LlmSettingsStore>();
-            LlmSettings settings = store.Load();
-            string? apiKey = store.GetApiKey();
-
-            // 未配置时给一个会明确报错的占位实现，而不是让 DI 装配直接失败
-            return apiKey is null || string.IsNullOrWhiteSpace(settings.Model)
-                ? new NotConfiguredLlmProvider()
-                : new OpenAiCompatibleProvider(
-                    settings.BaseUrl,
-                    apiKey,
-                    settings.Model,
-                    settings.Temperature,
-                    settings.TimeoutSeconds);
-        });
-
+        services.AddSingleton<ModelCatalogService>();
+        // 配置可切换：用路由提供方，每次调用按"当前生效配置"取实际实现，
+        // 避免切换配置后仍然用旧的 provider 实例。
+        services.AddSingleton<ILlmProvider, RoutingLlmProvider>();
         services.AddSingleton<ICommandBinder, DefaultCommandBinder>();
         services.AddSingleton<IAiAgent, CuaAgent>();
 

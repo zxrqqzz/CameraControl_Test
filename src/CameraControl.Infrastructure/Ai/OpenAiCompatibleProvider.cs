@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using CameraControl.Application.Cua;
+using CameraControl.Application.Diagnostics;
 
 namespace CameraControl.Infrastructure.Ai;
 
@@ -27,9 +28,22 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
     private readonly string _apiKey;
     private readonly string _model;
     private readonly double _temperature;
+    private readonly string? _reasoningEffort;
+    private readonly IAppLogger? _logger;
     private readonly HttpClient _http;
 
-    public OpenAiCompatibleProvider(string baseUrl, string apiKey, string model, double temperature, int timeoutSeconds)
+    /// <param name="reasoningEffort">
+    /// 推理力度（low/medium/high）。仅当模型明确支持 <c>reasoning_effort</c> 时传入，
+    /// 否则为 null —— 传错参数会 400，比"力度没生效"更糟。
+    /// </param>
+    public OpenAiCompatibleProvider(
+        string baseUrl,
+        string apiKey,
+        string model,
+        double temperature,
+        int timeoutSeconds,
+        string? reasoningEffort = null,
+        IAppLogger? logger = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(baseUrl);
         ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
@@ -39,6 +53,8 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
         _apiKey = apiKey;
         _model = model;
         _temperature = temperature;
+        _reasoningEffort = string.IsNullOrWhiteSpace(reasoningEffort) ? null : reasoningEffort;
+        _logger = logger;
 
         _http = new HttpClient
         {
@@ -71,23 +87,60 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
+            LogFailure("调用模型超时", null, null);
             throw new LlmException(LlmErrorCodes.Timeout, "调用模型超时。");
         }
         catch (HttpRequestException ex)
         {
+            LogFailure("调用模型网络错误", null, ex.Message);
             throw new LlmException(LlmErrorCodes.Network, $"网络错误：{ex.Message}", ex);
         }
 
         using (response)
         {
             if (!response.IsSuccessStatusCode)
+            {
+                // 把服务端返回体记进日志（截断），排障时不用再猜是 key 错还是参数错
+                LogFailure($"模型请求被拒绝（HTTP {(int)response.StatusCode}）", response.StatusCode, body);
+
                 throw MapHttpError(response.StatusCode, body);
+            }
 
             return ParseResponse(body);
         }
     }
 
-    private string BuildRequestJson(LlmChatRequest request)
+    /// <summary>
+    /// 记录失败细节：地址、模型、状态码、返回体片段。
+    /// **不记录 key**——日志会被导出/上传，密钥不能进日志。
+    /// </summary>
+    private void LogFailure(string title, HttpStatusCode? status, string? detail)
+    {
+        if (_logger is null) return;
+
+        try
+        {
+            string snippet = detail is null
+                ? string.Empty
+                : (detail.Length > 600 ? detail[..600] : detail);
+
+            _logger.Error(title, new Dictionary<string, object?>
+            {
+                ["url"] = $"{_baseUrl}/{ChatCompletionsPath}",
+                ["model"] = _model,
+                ["httpStatus"] = status is null ? null : (int)status,
+                ["reasoningEffort"] = _reasoningEffort,
+                ["response"] = snippet
+            });
+        }
+        catch
+        {
+            // 记日志失败不能再抛
+        }
+    }
+
+    /// <summary>构造请求体（internal 供测试断言字段，避免"改了但没生效"）。</summary>
+    internal string BuildRequestJson(LlmChatRequest request)
     {
         var messages = request.Messages.Select(ToWireMessage).ToArray();
 
@@ -111,6 +164,7 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
             tools,
             tool_choice = tools is null ? null : "auto",
             temperature = request.Temperature > 0 ? request.Temperature : _temperature,
+            reasoning_effort = _reasoningEffort,
             max_tokens = request.MaxTokens
         };
 

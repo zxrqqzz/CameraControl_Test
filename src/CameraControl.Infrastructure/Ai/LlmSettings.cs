@@ -124,32 +124,91 @@ public sealed class DpapiSecretProtector : ISecretProtector
     private static extern IntPtr LocalFree(IntPtr handle);
 }
 
-/// <summary>
-/// LLM 配置。
-/// <paramref name="ApiKeyProtected"/> 存的是 DPAPI 密文，**永不落明文**。
-/// </summary>
-public sealed class LlmSettings
+/// <summary>推理力度（"强度"的人工选择部分）。</summary>
+public enum LlmStrength
 {
-    /// <summary>提供方显示名（用于日志/审计）。</summary>
-    public string ProviderName { get; set; } = "OpenAI Compatible";
+    /// <summary>更快更省。</summary>
+    Low = 0,
 
-    /// <summary>OpenAI 兼容的 base URL，如 https://api.openai.com/v1 。</summary>
-    public string BaseUrl { get; set; } = "https://api.openai.com/v1";
+    /// <summary>默认。</summary>
+    Medium = 1,
+
+    /// <summary>更慢更强。</summary>
+    High = 2
+}
+
+/// <summary>
+/// 一套模型配置。
+///
+/// **API Key 只能写入一次**：新增条目时加密保存，之后只读（界面上不可编辑、不可回显明文）。
+/// 要换 key 只能删除整条再新增——这样"密钥泄露"只可能来自新增动作，而不可能来自"编辑时看到旧值"。
+/// </summary>
+public sealed class LlmProfile
+{
+    /// <summary>稳定 id。</summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>显示名，如 "DeepSeek 官方"。</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>base URL（保存前已归一化，含 /v1）。</summary>
+    public string BaseUrl { get; set; } = string.Empty;
 
     /// <summary>模型名。</summary>
     public string Model { get; set; } = string.Empty;
 
-    /// <summary>DPAPI 加密后的 API Key（Base64）。</summary>
+    /// <summary>DPAPI 密文。**写入后不再修改**。</summary>
     public string? ApiKeyProtected { get; set; }
+
+    /// <summary>
+    /// 密钥提示：只保留末 4 位，用于人工辨认是哪一把钥匙。
+    /// 不含完整密钥，可安全落盘。
+    /// </summary>
+    public string? KeyHint { get; set; }
+
+    /// <summary>推理力度。</summary>
+    public LlmStrength Strength { get; set; } = LlmStrength.Medium;
 
     /// <summary>单次请求超时（秒）。</summary>
     public int TimeoutSeconds { get; set; } = 60;
 
     /// <summary>采样温度。</summary>
     public double Temperature { get; set; } = 0.1;
+
+    /// <summary>创建时间。</summary>
+    public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>是否已保存 key。</summary>
+    public bool HasKey => !string.IsNullOrWhiteSpace(ApiKeyProtected);
 }
 
-/// <summary>LLM 配置存储：读写 settings 文件，密钥经 DPAPI 保护。</summary>
+/// <summary>
+/// LLM 配置：**多条配置并存**，可切换当前使用的一条。
+/// </summary>
+public sealed class LlmSettings
+{
+    /// <summary>全部配置。</summary>
+    public List<LlmProfile> Profiles { get; set; } = [];
+
+    /// <summary>当前使用的配置 id。</summary>
+    public string? ActiveProfileId { get; set; }
+
+    // ── 旧版扁平字段：仅用于一次性迁移，迁移后置空 ──────────
+    public string? ProviderName { get; set; }
+    public string? BaseUrl { get; set; }
+    public string? Model { get; set; }
+    public string? ApiKeyProtected { get; set; }
+    public int TimeoutSeconds { get; set; }
+    public double Temperature { get; set; }
+}
+
+/// <summary>
+/// LLM 配置存储：读写 settings 文件，密钥经 DPAPI 保护。
+///
+/// 约定：
+/// - <see cref="AddProfile"/> 之外**没有**修改 key 的入口（只能删条目重建）；
+/// - baseUrl 保存前统一归一化（自动补 scheme 与 /v1）。
+/// </summary>
 public sealed class LlmSettingsStore
 {
     private const string Key = "llm";
@@ -166,45 +225,269 @@ public sealed class LlmSettingsStore
         _protector = protector;
     }
 
-    public LlmSettings Load() =>
-        _store.TryLoad<LlmSettings>(Key, out LlmSettings? settings) && settings is not null
-            ? settings
+    // ── 读取 ────────────────────────────────────────────────
+
+    public LlmSettings Load()
+    {
+        LlmSettings settings = _store.TryLoad<LlmSettings>(Key, out LlmSettings? loaded) && loaded is not null
+            ? loaded
             : new LlmSettings();
 
-    public void Save(LlmSettings settings)
+        return MigrateLegacy(settings);
+    }
+
+    public IReadOnlyList<LlmProfile> ListProfiles() => Load().Profiles;
+
+    public LlmProfile? FindProfile(string? id) =>
+        string.IsNullOrWhiteSpace(id) ? null : Load().Profiles.FirstOrDefault(p => p.Id == id);
+
+    /// <summary>当前生效的配置；没有则返回 null。</summary>
+    public LlmProfile? ActiveProfile()
+    {
+        LlmSettings settings = Load();
+
+        LlmProfile? active = settings.Profiles.FirstOrDefault(p => p.Id == settings.ActiveProfileId);
+
+        return active ?? settings.Profiles.FirstOrDefault();
+    }
+
+    /// <summary>取某条配置的明文 key；解密失败（换用户/机器）返回 null。</summary>
+    public string? GetApiKey(string profileId)
+    {
+        LlmProfile? profile = FindProfile(profileId);
+        return profile?.ApiKeyProtected is null ? null : _protector.Unprotect(profile.ApiKeyProtected);
+    }
+
+    /// <summary>当前配置的明文 key。</summary>
+    public string? GetActiveApiKey()
+    {
+        LlmProfile? profile = ActiveProfile();
+        return profile is null ? null : GetApiKey(profile.Id);
+    }
+
+    /// <summary>是否已具备可用配置（有模型 + key 可解）。</summary>
+    public bool IsConfigured()
+    {
+        LlmProfile? profile = ActiveProfile();
+
+        return profile is not null
+               && !string.IsNullOrWhiteSpace(profile.Model)
+               && GetApiKey(profile.Id) is not null;
+    }
+
+    // ── 写入 ────────────────────────────────────────────────
+
+    /// <summary>新增配置（唯一写入 key 的入口）。</summary>
+    public LlmProfile AddProfile(
+        string name,
+        string baseUrl,
+        string model,
+        string? plainApiKey,
+        LlmStrength strength = LlmStrength.Medium)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(model);
+
+        string normalized = NormalizeBaseUrl(baseUrl);
+
+        if (string.IsNullOrWhiteSpace(normalized))
+            throw new ArgumentException("baseUrl 不能为空。", nameof(baseUrl));
+
+        LlmSettings settings = Load();
+
+        var profile = new LlmProfile
+        {
+            Id = Guid.NewGuid().ToString("N")[..12],
+            Name = string.IsNullOrWhiteSpace(name) ? DescribeHost(normalized) : name.Trim(),
+            BaseUrl = normalized,
+            Model = model.Trim(),
+            Strength = strength,
+            ApiKeyProtected = string.IsNullOrWhiteSpace(plainApiKey) ? null : _protector.Protect(plainApiKey),
+            KeyHint = MaskKey(plainApiKey),
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        settings.Profiles.Add(profile);
+
+        // 第一条自动设为当前
+        settings.ActiveProfileId ??= profile.Id;
+
+        Save(settings);
+
+        return profile;
+    }
+
+    /// <summary>删除整条配置（含密钥）。不存在返回 false。</summary>
+    public bool RemoveProfile(string profileId)
+    {
+        LlmSettings settings = Load();
+
+        int removed = settings.Profiles.RemoveAll(p => p.Id == profileId);
+
+        if (removed == 0) return false;
+
+        if (settings.ActiveProfileId == profileId)
+            settings.ActiveProfileId = settings.Profiles.FirstOrDefault()?.Id;
+
+        Save(settings);
+
+        return true;
+    }
+
+    /// <summary>切换当前配置。</summary>
+    public bool SetActive(string profileId)
+    {
+        LlmSettings settings = Load();
+
+        if (settings.Profiles.All(p => p.Id != profileId)) return false;
+
+        settings.ActiveProfileId = profileId;
+        Save(settings);
+
+        return true;
+    }
+
+    /// <summary>
+    /// 修改配置的**非密钥**字段。密钥不在此列——要换 key 请删除后重新新增。
+    /// </summary>
+    public bool UpdateProfile(
+        string profileId,
+        string? name = null,
+        string? baseUrl = null,
+        string? model = null,
+        LlmStrength? strength = null,
+        int? timeoutSeconds = null,
+        double? temperature = null)
+    {
+        LlmSettings settings = Load();
+
+        LlmProfile? profile = settings.Profiles.FirstOrDefault(p => p.Id == profileId);
+        if (profile is null) return false;
+
+        if (!string.IsNullOrWhiteSpace(name)) profile.Name = name.Trim();
+
+        if (!string.IsNullOrWhiteSpace(baseUrl))
+        {
+            string normalized = NormalizeBaseUrl(baseUrl);
+            if (!string.IsNullOrWhiteSpace(normalized)) profile.BaseUrl = normalized;
+        }
+
+        if (!string.IsNullOrWhiteSpace(model)) profile.Model = model.Trim();
+        if (strength is not null) profile.Strength = strength.Value;
+        if (timeoutSeconds is not null) profile.TimeoutSeconds = Math.Clamp(timeoutSeconds.Value, 5, 600);
+        if (temperature is not null) profile.Temperature = Math.Clamp(temperature.Value, 0, 2);
+
+        Save(settings);
+
+        return true;
+    }
+
+    // ── 归一化 / 掩码 ───────────────────────────────────────
+
+    /// <summary>
+    /// baseUrl 归一化：
+    /// - 缺 scheme 时补上（本机/内网默认 http，其它默认 https）；
+    /// - 路径为空时补 <c>/v1</c>；
+    /// - 已带路径（/v1、/openai/v1、/v1beta…）则原样保留，不猜。
+    /// </summary>
+    public static string NormalizeBaseUrl(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+
+        string text = raw.Trim().TrimEnd('/');
+
+        if (text.Length == 0) return string.Empty;
+
+        if (!text.Contains("://", StringComparison.Ordinal))
+            text = (IsLikelyLocal(text) ? "http://" : "https://") + text;
+
+        if (!Uri.TryCreate(text, UriKind.Absolute, out Uri? uri)) return string.Empty;
+
+        string path = uri.AbsolutePath.TrimEnd('/');
+
+        if (path.Length == 0)
+            path = "/v1";
+
+        var builder = new UriBuilder(uri) { Path = path };
+
+        return builder.Uri.ToString().TrimEnd('/');
+    }
+
+    /// <summary>给 baseUrl 生成一个可读名字（未填名称时用）。</summary>
+    public static string DescribeHost(string baseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl)) return "未命名";
+
+        return Uri.TryCreate(baseUrl, UriKind.Absolute, out Uri? uri) ? uri.Host : baseUrl;
+    }
+
+    /// <summary>
+    /// 生成密钥提示：只保留末 4 位。
+    /// 不含完整密钥，可安全落盘，用于人工辨认"是哪一把钥匙"。
+    /// </summary>
+    public static string? MaskKey(string? plainApiKey)
+    {
+        if (string.IsNullOrWhiteSpace(plainApiKey)) return null;
+
+        string trimmed = plainApiKey.Trim();
+
+        return trimmed.Length <= 4 ? "****" : $"…{trimmed[^4..]}";
+    }
+
+    private static bool IsLikelyLocal(string text)
+    {
+        string host = text.Split('/', ':')[0];
+
+        return host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+               || host.StartsWith("127.", StringComparison.Ordinal)
+               || host.StartsWith("10.", StringComparison.Ordinal)
+               || host.StartsWith("192.168.", StringComparison.Ordinal)
+               || host.StartsWith("172.16.", StringComparison.Ordinal);
+    }
+
+    // ── 私有 ────────────────────────────────────────────────
+
+    private void Save(LlmSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _store.Save(Key, settings);
     }
 
     /// <summary>
-    /// 设置明文 API Key（内部立即加密，调用方无需关心）。
-    /// 传空字符串表示清除。
+    /// 旧版（单条扁平字段）→ 多条配置的一次性迁移。
+    /// 迁移后清掉旧字段，避免同一把 key 在两处存在。
     /// </summary>
-    public void SetApiKey(string? plainApiKey)
+    private LlmSettings MigrateLegacy(LlmSettings settings)
     {
-        LlmSettings settings = Load();
+        if (settings.Profiles.Count > 0) return settings;
+        if (string.IsNullOrWhiteSpace(settings.ApiKeyProtected)) return settings;
 
-        settings.ApiKeyProtected = string.IsNullOrWhiteSpace(plainApiKey)
-            ? null
-            : _protector.Protect(plainApiKey);
+        string? baseUrl = NormalizeBaseUrl(settings.BaseUrl);
+        string model = settings.Model ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(model))
+            return settings;
+
+        var profile = new LlmProfile
+        {
+            Id = Guid.NewGuid().ToString("N")[..12],
+            Name = DescribeHost(baseUrl),
+            BaseUrl = baseUrl,
+            Model = model,
+            ApiKeyProtected = settings.ApiKeyProtected,
+            KeyHint = null,
+            TimeoutSeconds = settings.TimeoutSeconds <= 0 ? 60 : settings.TimeoutSeconds,
+            Temperature = settings.Temperature <= 0 ? 0.1 : settings.Temperature
+        };
+
+        settings.Profiles.Add(profile);
+        settings.ActiveProfileId = profile.Id;
+        settings.BaseUrl = null;
+        settings.Model = null;
+        settings.ApiKeyProtected = null;
+        settings.ProviderName = null;
 
         Save(settings);
-    }
 
-    /// <summary>取明文 API Key；未配置或无法解密返回 null。</summary>
-    public string? GetApiKey()
-    {
-        LlmSettings settings = Load();
-        return settings.ApiKeyProtected is null ? null : _protector.Unprotect(settings.ApiKeyProtected);
-    }
-
-    /// <summary>是否已具备可用配置（有 baseUrl + model + key）。</summary>
-    public bool IsConfigured()
-    {
-        LlmSettings settings = Load();
-        return !string.IsNullOrWhiteSpace(settings.BaseUrl)
-               && !string.IsNullOrWhiteSpace(settings.Model)
-               && GetApiKey() is not null;
+        return settings;
     }
 }

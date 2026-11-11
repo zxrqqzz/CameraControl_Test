@@ -36,4 +36,8 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="CameraControl.Infrastructure.Tests" />
+  </ItemGroup>
+
 </Project>

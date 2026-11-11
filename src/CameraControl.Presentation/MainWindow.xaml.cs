@@ -19,6 +19,6 @@ public partial class MainWindow : Window
     private void OnApiKeyChanged(object sender, RoutedEventArgs e)
     {
         if (DataContext is MainViewModel viewModel && sender is System.Windows.Controls.PasswordBox box)
-            viewModel.AiApiKeyInput = box.Password;
+            viewModel.SetPendingApiKey(box.Password);
     }
 }

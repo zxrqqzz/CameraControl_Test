@@ -37,6 +37,23 @@ public partial class App : System.Windows.Application
             new CompositionOptions(ConsoleLogging: false),
             new WpfConfirmationGate());
 
+        // 每次启动写一条 info：保证"日志在哪、这次跑的是哪个版本"可查。
+        // 之前失败只显示在界面状态栏，日志里一片空白，没法排障。
+        try
+        {
+            _services.GetService<IAppLogger>()?.Info("应用启动", new Dictionary<string, object?>
+            {
+                ["version"] = typeof(App).Assembly.GetName().Version?.ToString(),
+                ["dataDirectory"] = ServiceRegistration.ResolveDataDirectory(),
+                ["os"] = Environment.OSVersion.ToString(),
+                ["args"] = string.Join(' ', e.Args)
+            });
+        }
+        catch
+        {
+            // 记日志失败不能影响启动
+        }
+
         string? smokeOutput = GetArgValue(e.Args, "--smoke-test");
         if (smokeOutput is not null)
         {
@@ -50,6 +67,7 @@ public partial class App : System.Windows.Application
         // 所以视图模型由宿主用容器构造。
         var viewModel = ActivatorUtilities.CreateInstance<MainViewModel>(_services);
 
+        viewModel.Dialog = new MessageBoxDialogService();
         var window = new MainWindow { DataContext = viewModel };
         MainWindow = window;
         window.Show();

@@ -119,72 +119,168 @@ internal static partial class Program
 
     private static async Task<int> ConfigureAsync(LlmSettingsStore store, string[] args)
     {
-        LlmSettings settings = store.Load();
-        bool changed = false;
-
-        if (GetValue(args, "--base-url") is string baseUrl && baseUrl.Length > 0)
+        // 配置是"多条并存 + 可切换"的。
+        // key 只能在新增时写入，之后不可读、不可改（只能删条目重建）。
+        if (args.Contains("--list", StringComparer.Ordinal))
         {
-            settings.BaseUrl = baseUrl;
-            changed = true;
+            return ListProfiles(store);
         }
 
-        if (GetValue(args, "--model") is string model && model.Length > 0)
+        if (GetValue(args, "--use") is string useId)
         {
-            settings.Model = model;
-            changed = true;
+            return store.SetActive(useId)
+                ? PrintProfiles(store, $"已切换到 {useId}。")
+                : Fail($"没有 id 为 {useId} 的配置。");
         }
 
-        if (GetValue(args, "--provider-name") is string providerName && providerName.Length > 0)
+        if (GetValue(args, "--remove") is string removeId)
         {
-            settings.ProviderName = providerName;
-            changed = true;
+            return store.RemoveProfile(removeId)
+                ? PrintProfiles(store, $"已删除 {removeId}（其密钥一并删除）。")
+                : Fail($"没有 id 为 {removeId} 的配置。");
         }
 
-        if (GetValue(args, "--timeout-seconds") is string timeoutText
-            && int.TryParse(timeoutText, out int timeout))
+        if (args.Contains("--models", StringComparer.Ordinal))
         {
-            settings.TimeoutSeconds = timeout;
-            changed = true;
+            return await ListModelsAsync(store).ConfigureAwait(false);
         }
 
-        if (changed) store.Save(settings);
+        // 默认动作 = 新增一条配置
+        string? baseUrl = GetValue(args, "--base-url");
+        string? model = GetValue(args, "--model");
 
-        // API Key：优先从 stdin 读，避免留在命令历史里
+        if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(model))
+        {
+            Console.Error.WriteLine("新增配置需要 --base-url 与 --model：");
+            Console.Error.WriteLine("  Agent --configure --add --name DeepSeek \\");
+            Console.Error.WriteLine("        --base-url api.deepseek.com --model deepseek-chat --api-key-stdin");
+            return 2;
+        }
+
+        string? apiKey = null;
+
         if (args.Contains("--api-key-stdin", StringComparer.Ordinal))
         {
             Console.Write("请输入 API Key（回车确认，输入不回显）：");
-
-            string? key = ReadSecret();
+            apiKey = ReadSecret();
             Console.WriteLine();
-
-            if (!string.IsNullOrWhiteSpace(key))
-            {
-                store.SetApiKey(key);
-                Console.WriteLine("API Key 已加密保存（DPAPI，仅当前用户可解密）。");
-            }
-            else
-            {
-                Console.WriteLine("未输入，保持不变。");
-            }
         }
         else if (GetValue(args, "--api-key") is string inlineKey && inlineKey.Length > 0)
         {
             Console.Error.WriteLine("警告：通过命令行传 API Key 会留在命令历史里，建议改用 --api-key-stdin。");
-            store.SetApiKey(inlineKey);
+            apiKey = inlineKey;
         }
 
-        LlmSettings current = store.Load();
-        string? existingKey = store.GetApiKey();
+        LlmStrength strength = ParseStrength(GetValue(args, "--strength"));
+
+        try
+        {
+            LlmProfile profile = store.AddProfile(
+                GetValue(args, "--name") ?? string.Empty,
+                baseUrl,
+                model,
+                apiKey,
+                strength);
+
+            Console.WriteLine(
+                $"已新增配置 {profile.Id}：{profile.Name} → {profile.BaseUrl}，模型 {profile.Model}，" +
+                $"强度 {profile.Strength}，key {(profile.HasKey ? profile.KeyHint : "(未设置)")}。");
+        }
+        catch (ArgumentException ex)
+        {
+            return Fail(ex.Message);
+        }
+
+        return PrintProfiles(store, null);
+    }
+
+    /// <summary>列出全部配置，标出当前生效的一条。</summary>
+    private static int ListProfiles(LlmSettingsStore store) => PrintProfiles(store, null);
+
+    private static int PrintProfiles(LlmSettingsStore store, string? message)
+    {
+        if (message is not null) Console.WriteLine(message);
+
+        LlmSettings settings = store.Load();
+        LlmProfile? active = store.ActiveProfile();
 
         Console.WriteLine();
-        Console.WriteLine($"  BaseUrl : {current.BaseUrl}");
-        Console.WriteLine($"  Model   : {(string.IsNullOrWhiteSpace(current.Model) ? "(未设置)" : current.Model)}");
-        Console.WriteLine($"  Timeout : {current.TimeoutSeconds}s");
-        Console.WriteLine($"  API Key : {(existingKey is null ? "(未设置)" : Mask(existingKey))}");
-        Console.WriteLine($"  状态    : {(store.IsConfigured() ? "已就绪" : "未完成配置")}");
+        Console.WriteLine("  id            当前  名称             baseUrl                          模型                强度      key");
 
-        await Task.CompletedTask;
+        foreach (LlmProfile profile in settings.Profiles)
+        {
+            string mark = profile.Id == active?.Id ? "  *  " : "     ";
+
+            Console.WriteLine(
+                $"  {profile.Id,-12} {mark} {Truncate(profile.Name, 14),-14} " +
+                $"{Truncate(profile.BaseUrl, 32),-32} {Truncate(profile.Model, 18),-18} " +
+                $"{profile.Strength,-8} {profile.KeyHint ?? "(无)"}");
+        }
+
+        if (settings.Profiles.Count == 0) Console.WriteLine("  （还没有任何配置）");
+
+        Console.WriteLine();
+        Console.WriteLine($"  状态：{(store.IsConfigured() ? "已就绪" : "未完成配置（需要模型 + 可解密的 key）")}");
+
+        if (active is not null && store.GetApiKey(active.Id) is null && active.HasKey)
+        {
+            Console.WriteLine("  注意：当前配置的 key 无法解密（可能换了 Windows 账户/机器），请删除后重新新增。");
+        }
+
         return store.IsConfigured() ? 0 : 1;
+    }
+
+    /// <summary>拉取当前配置的模型清单（拉不到则展示内置兜底）。</summary>
+    private static async Task<int> ListModelsAsync(LlmSettingsStore store)
+    {
+        LlmProfile? profile = store.ActiveProfile();
+
+        if (profile is null) return Fail("还没有配置，先新增一条再拉模型。");
+
+        string? apiKey = store.GetApiKey(profile.Id);
+
+        using var catalog = new ModelCatalogService();
+
+        ModelCatalogResult result = await catalog
+            .FetchAsync(profile.BaseUrl, apiKey, CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Console.WriteLine($"模型清单来源：{(result.Source == ModelCatalogSource.Remote ? "服务端 /models" : "内置兜底")}");
+
+        if (result.Error is not null) Console.WriteLine($"  {result.Error}");
+
+        Console.WriteLine();
+
+        foreach (ModelEntry entry in result.Models)
+        {
+            string reasoning = entry.SupportsReasoningEffort ? " 可调推理力度" : string.Empty;
+
+            Console.WriteLine(
+                $"  [{entry.Tier,-8}] {entry.Id,-24}{reasoning}" +
+                (entry.Note is null ? string.Empty : $"  — {entry.Note}"));
+        }
+
+        return 0;
+    }
+
+    private static LlmStrength ParseStrength(string? text) => text?.ToLowerInvariant() switch
+    {
+        "low" => LlmStrength.Low,
+        "high" => LlmStrength.High,
+        "medium" or null => LlmStrength.Medium,
+        _ => LlmStrength.Medium
+    };
+
+    private static string Truncate(string? text, int max)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+        return text.Length <= max ? text : text[..(max - 1)] + "…";
+    }
+
+    private static int Fail(string message)
+    {
+        Console.Error.WriteLine(message);
+        return 1;
     }
 
     private static string? ReadSecret()
