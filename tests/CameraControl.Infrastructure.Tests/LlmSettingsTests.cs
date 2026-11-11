@@ -281,4 +281,50 @@ public sealed class LlmSettingsTests
         Assert.NotNull(result.Error);
         Assert.True(result.IsFallback);
     }
+
+    /// <summary>
+    /// 端到端落盘：真实 JsonSettingsStore + 真实文件系统。
+    ///
+    /// 前面用内存存储验证业务规则，这里补一条"真的写进磁盘再读回来"——
+    /// 用户遇到的正是**落盘**失败，模拟存储测不出来。
+    /// </summary>
+    [Fact]
+    public void 应能真实落盘并读回()
+    {
+        string root = Path.Combine(AppContext.BaseDirectory, "llm-e2e", Guid.NewGuid().ToString("N"));
+
+        try
+        {
+            var store = new LlmSettingsStore(new JsonSettingsStore(root), new FakeProtector());
+
+            LlmProfile profile = store.AddProfile(
+                "DeepSeek", "api.deepseek.com", "deepseek-chat", "sk-e2e-5678");
+
+            string path = Path.Combine(root, "llm.json");
+
+            Assert.True(File.Exists(path));
+
+            // 落盘内容不含明文 key
+            string json = File.ReadAllText(path);
+            Assert.DoesNotContain("sk-e2e-5678", json);
+
+            // 重新构造 store（模拟重启）后仍能读回并解密
+            var reopened = new LlmSettingsStore(new JsonSettingsStore(root), new FakeProtector());
+
+            Assert.Single(reopened.ListProfiles());
+            Assert.Equal("deepseek-chat", reopened.ActiveProfile()!.Model);
+            Assert.Equal("sk-e2e-5678", reopened.GetApiKey(profile.Id));
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            }
+            catch
+            {
+                // 清理失败不影响结论
+            }
+        }
+    }
 }

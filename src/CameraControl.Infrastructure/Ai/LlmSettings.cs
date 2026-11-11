@@ -486,7 +486,15 @@ public sealed class LlmSettingsStore
         settings.ApiKeyProtected = null;
         settings.ProviderName = null;
 
-        Save(settings);
+        try
+        {
+            Save(settings);
+        }
+        catch (Exception)
+        {
+            // 迁移时的落盘失败不能拖垮启动：内存里已经是迁移后的结构，
+            // 下次启动会再试一次。真正写不进去时，用户新增配置会给出明确错误。
+        }
 
         return settings;
     }
