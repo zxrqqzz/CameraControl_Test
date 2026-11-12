@@ -23,8 +23,9 @@ public sealed record LlmProfileRow(
     /// <summary>强度中文。</summary>
     public string StrengthText => Strength switch
     {
-        LlmStrength.Low => "低",
-        LlmStrength.High => "高",
-        _ => "中"
+        LlmStrength.Off => "Off",
+        LlmStrength.Low => "Low",
+        LlmStrength.Max => "Max",
+        _ => "High"
     };
 }

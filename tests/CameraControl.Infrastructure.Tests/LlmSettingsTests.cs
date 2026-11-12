@@ -249,8 +249,12 @@ public sealed class LlmSettingsTests
     [InlineData("o1", true)]
     [InlineData("o3-mini", true)]
     [InlineData("gpt-5", true)]
-    [InlineData("deepseek-reasoner", false)]   // 自身推理，但不接受 reasoning_effort
-    [InlineData("deepseek-chat", false)]
+    // DeepSeek 官方文档：所有 DeepSeek 模型都支持思考模式与 reasoning_effort
+    [InlineData("deepseek-chat", true)]
+    [InlineData("deepseek-reasoner", true)]
+    [InlineData("DeepSeek-V4.1-Flash", true)]
+    [InlineData("gpt-4o", false)]
+    [InlineData("qwen-plus", false)]
     public void 推理力度支持应精确判断(string model, bool expected)
     {
         Assert.Equal(expected, ModelCatalogService.SupportsReasoningEffort(model));
@@ -258,11 +262,11 @@ public sealed class LlmSettingsTests
 
     [Theory]
     [InlineData(LlmStrength.Low, "low")]
-    [InlineData(LlmStrength.Medium, "medium")]
     [InlineData(LlmStrength.High, "high")]
-    public void 强度应映射为服务端参数(LlmStrength strength, string expected)
+    [InlineData(LlmStrength.Max, "max")]
+    public void 强度应映射为DeepSeek的low_high_max(LlmStrength strength, string expected)
     {
-        Assert.Equal(expected, ModelCatalogService.ToReasoningEffort(strength));
+        Assert.Equal(expected, ModelCatalogService.BuildReasoning("deepseek-chat", strength).Effort);
     }
 
     [Fact]

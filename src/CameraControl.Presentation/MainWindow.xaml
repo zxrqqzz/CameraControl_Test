@@ -7,7 +7,7 @@
         MinHeight="600"
         MinWidth="960"
         WindowStartupLocation="CenterScreen"
-        Background="#FFFFFFFF">
+        Background="#FFFFFFFF" DataContextChanged="OnDataContextChanged">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -296,7 +296,7 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <!-- 模型配置：纵向表单 + 行内说明 -->
+                    <!-- 模型配置：填密钥自动识别；使用时切模型/强度 -->
                     <Border Grid.Row="0"
                             BorderBrush="{StaticResource BorderBrushSoft}"
                             BorderThickness="1"
@@ -305,27 +305,75 @@
                             Margin="0,0,0,10">
                         <StackPanel>
 
-                            <!-- ① 当前使用 -->
-                            <TextBlock Text="当前使用的配置" FontWeight="SemiBold" />
+                            <!-- ① 新增：只填密钥 -->
+                            <TextBlock Text="新增配置" FontWeight="SemiBold" />
 
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="380" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Text="配置：" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Grid.Column="0" Text="密钥：" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <PasswordBox Grid.Column="1"
+                                             x:Name="ApiKeyBox"
+                                             Height="30" VerticalContentAlignment="Center"
+                                             PasswordChanged="OnApiKeyChanged" />
+                                <Button Grid.Column="2"
+                                        Content="识别并新增"
+                                        Style="{StaticResource ToolButtonStyle}"
+                                        Command="{Binding DetectAndAddProfileCommand}"
+                                        Margin="8,0,0,0" />
+                            </Grid>
 
-                                <ComboBox Grid.Column="1"
-                                          Height="30"
-                                          MaxWidth="420"
-                                          HorizontalAlignment="Left"
-                                          MinWidth="320"
+                            <TextBlock Text="填入密钥即可，会自动判断是哪家服务（先按前缀猜，不中再逐家探测）。保存后密钥不可查看、不可修改。"
+                                       FontSize="11" Margin="52,4,0,0" TextWrapping="Wrap"
+                                       Foreground="{StaticResource MutedBrush}" />
+
+                            <TextBlock Text="{Binding AiDetectStatus}"
+                                       FontSize="11" Margin="52,4,0,0" TextWrapping="Wrap"
+                                       Foreground="{StaticResource MutedBrush}" />
+
+                            <!-- 识别失败才出现的手填区 -->
+                            <StackPanel Margin="52,10,0,0"
+                                        Visibility="{Binding AiShowManualBaseUrl, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="没能自动识别，手动指定服务地址：" FontSize="11"
+                                           Foreground="{StaticResource WarnBrush}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <TextBox Width="300" Height="30" VerticalContentAlignment="Center"
+                                             ToolTip="如 https://api.example.com/v1"
+                                             Text="{Binding AiManualBaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+                                    <ComboBox Width="200" Height="30" IsEditable="True" Margin="6,0,0,0"
+                                              ToolTip="模型名：可先拉取，也可直接填"
+                                              ItemsSource="{Binding AiManualModelOptions}"
+                                              Text="{Binding AiManualModel, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Content="用手填信息新增"
+                                            Style="{StaticResource ToolButtonStyle}"
+                                            Command="{Binding AddManualProfileCommand}"
+                                            Margin="6,0,0,0" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding AiManualStatus}" FontSize="11" Margin="0,4,0,0"
+                                           TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+                            </StackPanel>
+
+                            <Separator Margin="0,14,0,12" />
+
+                            <!-- ② 使用：切配置 / 切模型 / 切强度 -->
+                            <TextBlock Text="使用中" FontWeight="SemiBold" />
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="320" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="配置：" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox Grid.Column="1" Height="30"
                                           ItemsSource="{Binding AiProfiles}"
                                           SelectedItem="{Binding AiSelectedProfile}"
                                           DisplayMemberPath="Display" />
-
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
                                     <Button Content="使用"
                                             Style="{StaticResource ToolButtonStyle}"
@@ -341,104 +389,52 @@
                                 </StackPanel>
                             </Grid>
 
-                            <TextBlock Text="{Binding AiKeyStatus}"
-                                       Margin="52,6,0,0"
-                                       FontSize="11"
+                            <TextBlock Text="{Binding AiKeyStatus}" FontSize="11" Margin="52,4,0,0"
                                        Foreground="{StaticResource MutedBrush}" />
 
-                            <Separator Margin="0,14,0,12" />
-
-                            <!-- ② 新增一套 -->
-                            <TextBlock Text="新增一套配置" FontWeight="SemiBold" />
-
-                            <Grid Margin="0,10,0,0">
+                            <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="420" />
+                                    <ColumnDefinition Width="300" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
 
-                                <!-- 地址 -->
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="地址："
-                                           VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <TextBox Grid.Row="0" Grid.Column="1"
-                                         Height="30" VerticalContentAlignment="Center"
-                                         Text="{Binding AiNewBaseUrl, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Grid.Row="1" Grid.Column="1"
-                                           Text="只填域名即可，如 api.deepseek.com —— 会自动补 https 与 /v1；内网地址自动用 http。"
-                                           FontSize="11" Margin="2,3,0,10"
-                                           Foreground="{StaticResource MutedBrush}" />
-
-                                <!-- 密钥 -->
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="密钥："
-                                           VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <PasswordBox Grid.Row="2" Grid.Column="1"
-                                             x:Name="ApiKeyBox"
-                                             Height="30" VerticalContentAlignment="Center"
-                                             PasswordChanged="OnApiKeyChanged" />
-                                <TextBlock Grid.Row="3" Grid.Column="1"
-                                           Text="保存后即加密，界面再也看不到、也改不了；要换就删掉这条重建。"
-                                           FontSize="11" Margin="2,3,0,10"
-                                           Foreground="{StaticResource MutedBrush}" />
-
-                                <!-- 模型 -->
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="模型："
-                                           VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <ComboBox Grid.Row="4" Grid.Column="1"
-                                          Height="30" IsEditable="True"
-                                          ItemsSource="{Binding AiModelOptions}"
-                                          Text="{Binding AiNewModel, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button Grid.Row="4" Grid.Column="2"
-                                        Content="拉取模型"
+                                <TextBlock Grid.Column="0" Text="模型：" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox Grid.Column="1" Height="30" IsEditable="True"
+                                          ItemsSource="{Binding AiCurrentModelOptions}"
+                                          Text="{Binding AiCurrentModel, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Grid.Column="2" Content="刷新模型"
                                         Style="{StaticResource ToolButtonStyle}"
-                                        Command="{Binding RefreshAiModelsCommand}"
-                                        Margin="8,0,0,0" />
-                                <TextBlock Grid.Row="5" Grid.Column="1"
-                                           Text="点「拉取模型」自动获取；拉不到会退回常见模型清单，也可直接手填。"
-                                           FontSize="11" Margin="2,3,0,10"
-                                           Foreground="{StaticResource MutedBrush}" />
+                                        Command="{Binding ReloadCurrentModelsCommand}"
+                                        Margin="6,0,0,0" />
 
-                                <!-- 强度 -->
-                                <TextBlock Grid.Row="6" Grid.Column="0" Text="强度："
-                                           VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <ComboBox Grid.Row="6" Grid.Column="1"
-                                          Height="30" HorizontalAlignment="Left" MinWidth="120"
-                                          SelectedIndex="{Binding AiStrengthIndex}">
-                                    <ComboBoxItem Content="低（快、省）" />
-                                    <ComboBoxItem Content="中（默认）" />
-                                    <ComboBoxItem Content="高（更慢更强）" />
+                                <!-- 只有模型支持思考强度时才显示 -->
+                                <TextBlock Grid.Column="3" Text="强度：" VerticalAlignment="Center"
+                                           Margin="14,0,8,0"
+                                           Visibility="{Binding AiStrengthSupported, Converter={StaticResource BoolToVisibility}}" />
+                                <ComboBox Grid.Column="4" Width="120" Height="30"
+                                          SelectedIndex="{Binding AiStrengthIndex}"
+                                          Visibility="{Binding AiStrengthSupported, Converter={StaticResource BoolToVisibility}}">
+                                    <ComboBoxItem Content="Off（关思考，最快）" />
+                                    <ComboBoxItem Content="Low" />
+                                    <ComboBoxItem Content="High（默认）" />
+                                    <ComboBoxItem Content="Max（最慢最强）" />
                                 </ComboBox>
-                                <TextBlock Grid.Row="7" Grid.Column="1"
-                                           Text="只有支持 reasoning_effort 的模型才会真正带上该参数；不支持的会忽略。"
-                                           FontSize="11" Margin="2,3,0,10"
-                                           Foreground="{StaticResource MutedBrush}" />
 
-                                <Button Grid.Row="8" Grid.Column="1"
-                                        Content="新增配置"
+                                <Button Grid.Column="5" Content="应用"
                                         Style="{StaticResource ToolButtonStyle}"
-                                        HorizontalAlignment="Left"
-                                        MinWidth="110"
-                                        Command="{Binding AddAiProfileCommand}" />
+                                        Command="{Binding ApplyCurrentSelectionCommand}"
+                                        Margin="10,0,0,0" />
                             </Grid>
 
-                            <TextBlock Text="{Binding AiCatalogSource}"
-                                       Margin="0,10,0,0"
-                                       FontSize="11"
-                                       TextWrapping="Wrap"
-                                       Foreground="{StaticResource MutedBrush}" />
+                            <TextBlock Text="{Binding AiCatalogSource}" FontSize="11" Margin="52,4,0,0"
+                                       TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
                         </StackPanel>
                     </Border>
+
 
 
 

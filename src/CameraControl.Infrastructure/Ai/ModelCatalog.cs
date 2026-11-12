@@ -199,9 +199,14 @@ public sealed class ModelCatalogService : IDisposable
     }
 
     /// <summary>
-    /// 是否接受 <c>reasoning_effort</c> 参数。
+    /// 该模型是否支持"思考强度"控制。
     ///
-    /// 只有明确支持的服务才传：传错参数会 400，比"力度没生效"更糟。
+    /// 依据（DeepSeek 官方文档 https://api-docs.deepseek.com/zh-cn/guides/thinking_mode ）：
+    /// DeepSeek 系列支持思考模式，用 <c>reasoning_effort = low/high/max</c> 控制强度，
+    /// 用 <c>thinking.type = disabled</c> 关闭；默认开启、默认 high。
+    /// OpenAI 推理系列用 <c>reasoning_effort</c>。
+    ///
+    /// 传错参数会 400，所以只对明确支持的模型暴露该选项。
     /// </summary>
     public static bool SupportsReasoningEffort(string modelId)
     {
@@ -209,20 +214,45 @@ public sealed class ModelCatalogService : IDisposable
 
         string id = modelId.ToLowerInvariant();
 
-        return id.StartsWith("o1", StringComparison.Ordinal)
+        return id.Contains("deepseek", StringComparison.Ordinal)
+               || id.StartsWith("o1", StringComparison.Ordinal)
                || id.StartsWith("o3", StringComparison.Ordinal)
                || id.StartsWith("o4", StringComparison.Ordinal)
                || id.StartsWith("gpt-5", StringComparison.Ordinal)
                || id.Contains("-reasoning", StringComparison.Ordinal);
     }
 
-    /// <summary>推理力度 → 服务端参数值。</summary>
-    public static string ToReasoningEffort(LlmStrength strength) => strength switch
+    /// <summary>
+    /// 把界面上的 4 档映射成服务端参数。
+    ///
+    /// DeepSeek：<c>low/high/max</c>，关闭用 <c>thinking.type=disabled</c>；
+    /// OpenAI 推理模型：只有 <c>low/medium/high</c>，没有 max —— max 降级为 high。
+    /// </summary>
+    public static ReasoningOptions BuildReasoning(string modelId, LlmStrength strength)
     {
-        LlmStrength.Low => "low",
-        LlmStrength.High => "high",
-        _ => "medium"
-    };
+        ArgumentNullException.ThrowIfNull(modelId);
+
+        if (!SupportsReasoningEffort(modelId)) return ReasoningOptions.None;
+
+        bool isDeepSeek = modelId.Contains("deepseek", StringComparison.OrdinalIgnoreCase);
+
+        if (strength == LlmStrength.Off)
+        {
+            // OpenAI 侧没有"关闭思考"的概念（不传即可）；DeepSeek 要显式关
+            return isDeepSeek
+                ? new ReasoningOptions(Effort: null, DisableThinking: true)
+                : ReasoningOptions.None;
+        }
+
+        string effort = strength switch
+        {
+            LlmStrength.Low => "low",
+            LlmStrength.Max => isDeepSeek ? "max" : "high",   // OpenAI 无 max
+            _ => "high"
+        };
+
+        return new ReasoningOptions(effort, DisableThinking: false);
+    }
 
     public void Dispose() => _http.Dispose();
 
@@ -272,4 +302,17 @@ public sealed class ModelCatalogService : IDisposable
             .Select(g => g.First())
             .OrderBy(m => m.Tier)
             .ThenBy(m => m.Id, StringComparer.OrdinalIgnoreCase)];
+}
+/// <summary>
+/// 思考强度对应的请求参数。
+/// </summary>
+/// <param name="Effort">写进 <c>reasoning_effort</c> 的值；null 表示不传。</param>
+/// <param name="DisableThinking">是否显式关闭思考（DeepSeek: <c>thinking.type=disabled</c>）。</param>
+public sealed record ReasoningOptions(string? Effort, bool DisableThinking)
+{
+    /// <summary>不控制思考（模型不支持，或无需传参）。</summary>
+    public static ReasoningOptions None { get; } = new(null, false);
+
+    /// <summary>是否真的需要发任何参数。</summary>
+    public bool HasEffect => Effort is not null || DisableThinking;
 }

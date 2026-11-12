@@ -124,17 +124,29 @@ public sealed class DpapiSecretProtector : ISecretProtector
     private static extern IntPtr LocalFree(IntPtr handle);
 }
 
-/// <summary>推理力度（"强度"的人工选择部分）。</summary>
+/// <summary>
+/// 思考强度（"推理等级"）。
+///
+/// 与 DeepSeek / OpenAI 的实际取值对齐：
+/// - <see cref="Off"/>：关闭思考（DeepSeek 用 <c>thinking.type = disabled</c>）
+/// - <see cref="Low"/> / <see cref="High"/> / <see cref="Max"/>：<c>reasoning_effort = low/high/max</c>
+///
+/// 刻意**不提供"中"档**：DeepSeek 的 <c>reasoning_effort</c> 没有 medium
+/// （medium 会被映射成 high），给了也只会让人以为设了中档。
+/// </summary>
 public enum LlmStrength
 {
-    /// <summary>更快更省。</summary>
-    Low = 0,
+    /// <summary>关闭思考。</summary>
+    Off = 0,
 
-    /// <summary>默认。</summary>
-    Medium = 1,
+    /// <summary>低。</summary>
+    Low = 1,
 
-    /// <summary>更慢更强。</summary>
-    High = 2
+    /// <summary>高（DeepSeek 默认）。</summary>
+    High = 2,
+
+    /// <summary>最大。</summary>
+    Max = 3
 }
 
 /// <summary>
@@ -166,8 +178,14 @@ public sealed class LlmProfile
     /// </summary>
     public string? KeyHint { get; set; }
 
-    /// <summary>推理力度。</summary>
-    public LlmStrength Strength { get; set; } = LlmStrength.Medium;
+    /// <summary>
+    /// 该 key 实际可用的模型名（识别时抓取并缓存）。
+    /// 存在这里是为了"使用时切换模型"不必每次重新拉取。
+    /// </summary>
+    public List<string> Models { get; set; } = [];
+
+    /// <summary>推理力度。仅当所选模型支持 reasoning_effort 时才真正生效。</summary>
+    public LlmStrength Strength { get; set; } = LlmStrength.High;
 
     /// <summary>单次请求超时（秒）。</summary>
     public int TimeoutSeconds { get; set; } = 60;
@@ -283,7 +301,8 @@ public sealed class LlmSettingsStore
         string baseUrl,
         string model,
         string? plainApiKey,
-        LlmStrength strength = LlmStrength.Medium)
+        LlmStrength strength = LlmStrength.High,
+        IReadOnlyList<string>? models = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
 
@@ -303,6 +322,7 @@ public sealed class LlmSettingsStore
             Strength = strength,
             ApiKeyProtected = string.IsNullOrWhiteSpace(plainApiKey) ? null : _protector.Protect(plainApiKey),
             KeyHint = MaskKey(plainApiKey),
+            Models = models is null ? [] : [.. models],
             CreatedAtUtc = DateTimeOffset.UtcNow
         };
 
@@ -341,6 +361,22 @@ public sealed class LlmSettingsStore
         if (settings.Profiles.All(p => p.Id != profileId)) return false;
 
         settings.ActiveProfileId = profileId;
+        Save(settings);
+
+        return true;
+    }
+
+    /// <summary>更新缓存的模型清单。</summary>
+    public bool SetModels(string profileId, IReadOnlyList<string> models)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+
+        LlmSettings settings = Load();
+        LlmProfile? profile = settings.Profiles.FirstOrDefault(p => p.Id == profileId);
+
+        if (profile is null) return false;
+
+        profile.Models = [.. models];
         Save(settings);
 
         return true;

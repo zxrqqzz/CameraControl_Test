@@ -267,8 +267,8 @@ internal static partial class Program
     {
         "low" => LlmStrength.Low,
         "high" => LlmStrength.High,
-        "medium" or null => LlmStrength.Medium,
-        _ => LlmStrength.Medium
+        "medium" or null => LlmStrength.High,
+        _ => LlmStrength.High
     };
 
     private static string Truncate(string? text, int max)

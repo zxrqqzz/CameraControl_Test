@@ -25,19 +25,28 @@ public sealed record LlmToolCall(string Id, string Name, string ArgumentsJson);
 /// <param name="ToolCalls">助手消息附带的工具调用。</param>
 /// <param name="ToolCallId">工具消息对应的调用 id。</param>
 /// <param name="Name">工具消息的工具名。</param>
+/// <param name="ReasoningContent">
+/// 思维链内容（DeepSeek 等思考模型返回）。
+/// **带 tools 时必须原样回传给 API**，否则下一轮会 400。
+/// 不带 tools 时可省略（API 会忽略）。
+/// </param>
 public sealed record LlmMessage(
     LlmRole Role,
     string? Content,
     IReadOnlyList<LlmToolCall>? ToolCalls = null,
     string? ToolCallId = null,
-    string? Name = null)
+    string? Name = null,
+    string? ReasoningContent = null)
 {
     public static LlmMessage System(string content) => new(LlmRole.System, content);
 
     public static LlmMessage User(string content) => new(LlmRole.User, content);
 
-    public static LlmMessage Assistant(string? content, IReadOnlyList<LlmToolCall>? toolCalls = null) =>
-        new(LlmRole.Assistant, content, toolCalls);
+    public static LlmMessage Assistant(
+        string? content,
+        IReadOnlyList<LlmToolCall>? toolCalls = null,
+        string? reasoningContent = null) =>
+        new(LlmRole.Assistant, content, toolCalls, ReasoningContent: reasoningContent);
 
     public static LlmMessage ToolResult(string toolCallId, string name, string content) =>
         new(LlmRole.Tool, content, ToolCallId: toolCallId, Name: name);

@@ -340,6 +340,7 @@ public static class ServiceRegistration
         services.AddSingleton<ISecretProtector, DpapiSecretProtector>();
         services.AddSingleton<LlmSettingsStore>();
         services.AddSingleton<ModelCatalogService>();
+        services.AddSingleton<ProviderCatalog>();
         // 配置可切换：用路由提供方，每次调用按"当前生效配置"取实际实现，
         // 避免切换配置后仍然用旧的 provider 实例。
         services.AddSingleton<ILlmProvider, RoutingLlmProvider>();

@@ -74,10 +74,8 @@ public sealed class RoutingLlmProvider : ILlmProvider, IDisposable
 
             _current?.Dispose();
 
-            // 只有模型明确支持 reasoning_effort 才传，否则留空避免 400
-            string? effort = ModelCatalogService.SupportsReasoningEffort(profile.Model)
-                ? ModelCatalogService.ToReasoningEffort(profile.Strength)
-                : null;
+            // 思考强度：由模型能力与档位共同决定（DeepSeek/OpenAI 规则不同）
+            ReasoningOptions reasoning = ModelCatalogService.BuildReasoning(profile.Model, profile.Strength);
 
             _current = new OpenAiCompatibleProvider(
                 profile.BaseUrl,
@@ -85,7 +83,7 @@ public sealed class RoutingLlmProvider : ILlmProvider, IDisposable
                 profile.Model,
                 profile.Temperature,
                 profile.TimeoutSeconds,
-                effort,
+                reasoning,
                 _logger);
 
             _signature = signature;
@@ -96,7 +94,7 @@ public sealed class RoutingLlmProvider : ILlmProvider, IDisposable
                 ["baseUrl"] = profile.BaseUrl,
                 ["model"] = profile.Model,
                 ["strength"] = profile.Strength.ToString(),
-                ["reasoningEffort"] = effort
+                ["reasoningEffort"] = reasoning.Effort, ["thinkingDisabled"] = reasoning.DisableThinking
             });
 
             return _current;

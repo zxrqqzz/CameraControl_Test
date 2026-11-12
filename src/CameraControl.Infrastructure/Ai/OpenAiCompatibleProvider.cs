@@ -29,12 +29,14 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
     private readonly string _model;
     private readonly double _temperature;
     private readonly string? _reasoningEffort;
+    private readonly bool _disableThinking;
     private readonly IAppLogger? _logger;
     private readonly HttpClient _http;
 
-    /// <param name="reasoningEffort">
-    /// 推理力度（low/medium/high）。仅当模型明确支持 <c>reasoning_effort</c> 时传入，
-    /// 否则为 null —— 传错参数会 400，比"力度没生效"更糟。
+    /// <param name="reasoning">
+    /// 思考强度参数。由 <see cref="ModelCatalogService.BuildReasoning"/> 统一换算——
+    /// DeepSeek 用 <c>reasoning_effort=low/high/max</c> + <c>thinking.type=disabled</c> 关闭；
+    /// OpenAI 只有 low/medium/high。传错参数会 400，所以不支持时这里必须是 null。
     /// </param>
     public OpenAiCompatibleProvider(
         string baseUrl,
@@ -42,7 +44,7 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
         string model,
         double temperature,
         int timeoutSeconds,
-        string? reasoningEffort = null,
+        ReasoningOptions? reasoning = null,
         IAppLogger? logger = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(baseUrl);
@@ -53,7 +55,8 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
         _apiKey = apiKey;
         _model = model;
         _temperature = temperature;
-        _reasoningEffort = string.IsNullOrWhiteSpace(reasoningEffort) ? null : reasoningEffort;
+        _reasoningEffort = string.IsNullOrWhiteSpace(reasoning?.Effort) ? null : reasoning!.Effort;
+        _disableThinking = reasoning?.DisableThinking == true;
         _logger = logger;
 
         _http = new HttpClient
@@ -165,6 +168,8 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
             tool_choice = tools is null ? null : "auto",
             temperature = request.Temperature > 0 ? request.Temperature : _temperature,
             reasoning_effort = _reasoningEffort,
+            // DeepSeek：显式关闭思考；其它厂商不传（不认这个字段会 400）
+            thinking = _disableThinking ? new { type = "disabled" } : null,
             max_tokens = request.MaxTokens
         };
 
@@ -175,6 +180,22 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
     {
         return message.Role switch
         {
+            // 带工具的思考模型：历史 reasoning_content 必须原样回传，否则 400
+            LlmRole.Assistant when message.ReasoningContent is { Length: > 0 } => new
+            {
+                role = "assistant",
+                content = message.Content,
+                reasoning_content = message.ReasoningContent,
+                tool_calls = message.ToolCalls is { Count: > 0 }
+                    ? message.ToolCalls.Select(c => new
+                    {
+                        id = c.Id,
+                        type = "function",
+                        function = new { name = c.Name, arguments = c.ArgumentsJson }
+                    }).ToArray()
+                    : null
+            },
+
             LlmRole.Assistant when message.ToolCalls is { Count: > 0 } => new
             {
                 role = "assistant",
@@ -253,6 +274,12 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
                 ? contentElement.GetString()
                 : null;
 
+            // 思考模型的思维链；带 tools 时必须在下轮回传，否则 400
+            string? reasoningContent = messageElement.TryGetProperty("reasoning_content", out JsonElement reasonElement)
+                && reasonElement.ValueKind == JsonValueKind.String
+                ? reasonElement.GetString()
+                : null;
+
             var toolCalls = new List<LlmToolCall>();
             if (messageElement.TryGetProperty("tool_calls", out JsonElement calls)
                 && calls.ValueKind == JsonValueKind.Array)
@@ -290,7 +317,7 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
                 && idProp.ValueKind == JsonValueKind.String ? idProp.GetString() : null;
 
             return new LlmChatResponse(
-                LlmMessage.Assistant(text, toolCalls.Count == 0 ? null : toolCalls),
+                LlmMessage.Assistant(text, toolCalls.Count == 0 ? null : toolCalls, reasoningContent),
                 usage,
                 finishReason,
                 requestId);
