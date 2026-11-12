@@ -239,7 +239,8 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
         }
     }
 
-    private static LlmChatResponse ParseResponse(string body)
+    /// <summary>解析响应（internal 供测试断言用量字段）。</summary>
+    internal static LlmChatResponse ParseResponse(string body)
     {
         JsonDocument document;
         try
@@ -310,7 +311,9 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
             {
                 usage = new LlmUsage(
                     GetInt(usageElement, "prompt_tokens"),
-                    GetInt(usageElement, "completion_tokens"));
+                    GetInt(usageElement, "completion_tokens"),
+                    CachedTokens: ReadCachedTokens(usageElement),
+                    CacheWriteTokens: GetInt(usageElement, "cache_creation_input_tokens"));
             }
 
             string? requestId = root.TryGetProperty("id", out JsonElement idProp)
@@ -330,6 +333,32 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
         && value.TryGetInt32(out int result)
             ? result
             : 0;
+
+    /// <summary>
+    /// 读"输入命中缓存"的 token 数。
+    ///
+    /// 各家字段不统一：
+    /// - DeepSeek：<c>prompt_cache_hit_tokens</c>
+    /// - OpenAI：<c>prompt_tokens_details.cached_tokens</c>
+    /// - 部分兼容服务：<c>cache_read_input_tokens</c>
+    /// 都取不到时返回 0（**不代表没命中**，只代表这家没提供该字段）。
+    /// </summary>
+    private static int ReadCachedTokens(JsonElement usage)
+    {
+        int hit = GetInt(usage, "prompt_cache_hit_tokens");
+        if (hit > 0) return hit;
+
+        int read = GetInt(usage, "cache_read_input_tokens");
+        if (read > 0) return read;
+
+        if (usage.TryGetProperty("prompt_tokens_details", out JsonElement details)
+            && details.ValueKind == JsonValueKind.Object)
+        {
+            return GetInt(details, "cached_tokens");
+        }
+
+        return 0;
+    }
 
     private static LlmException MapHttpError(HttpStatusCode status, string body)
     {

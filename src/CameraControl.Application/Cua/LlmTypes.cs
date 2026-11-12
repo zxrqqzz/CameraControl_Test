@@ -71,10 +71,39 @@ public sealed record LlmChatRequest(
     double Temperature = 0.1,
     int? MaxTokens = null);
 
-/// <summary>token 用量。</summary>
-public sealed record LlmUsage(int PromptTokens, int CompletionTokens)
+/// <summary>
+/// token 用量。
+/// </summary>
+/// <param name="PromptTokens">输入 token 总数（含缓存命中部分）。</param>
+/// <param name="CompletionTokens">输出 token。</param>
+/// <param name="CachedTokens">
+/// 输入里**命中缓存**的部分。
+/// DeepSeek 用 <c>prompt_cache_hit_tokens</c>，OpenAI 用 <c>prompt_tokens_details.cached_tokens</c>，
+/// 两家字段名不同，解析时统一到这里。
+/// </param>
+/// <param name="CacheWriteTokens">缓存写入（目前只有部分厂商提供，未知为 0）。</param>
+public sealed record LlmUsage(
+    int PromptTokens,
+    int CompletionTokens,
+    int CachedTokens = 0,
+    int CacheWriteTokens = 0)
 {
     public int TotalTokens => PromptTokens + CompletionTokens;
+
+    /// <summary>未命中缓存的输入。</summary>
+    public int UncachedInputTokens => Math.Max(0, PromptTokens - CachedTokens);
+
+    /// <summary>缓存命中率（0–1）。</summary>
+    public double CacheHitRate => PromptTokens <= 0 ? 0 : (double)CachedTokens / PromptTokens;
+
+    /// <summary>累加（用于多轮汇总）。</summary>
+    public LlmUsage Add(LlmUsage? other) => other is null
+        ? this
+        : new LlmUsage(
+            PromptTokens + other.PromptTokens,
+            CompletionTokens + other.CompletionTokens,
+            CachedTokens + other.CachedTokens,
+            CacheWriteTokens + other.CacheWriteTokens);
 }
 
 /// <summary>一次对话响应。</summary>

@@ -345,6 +345,20 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _aiAnswer = string.Empty;
 
+    /// <summary>用量栏标题：本次 + 会话累计。</summary>
+    [ObservableProperty]
+    private string _aiUsageText = "用量 —";
+
+    /// <summary>展开后的明细（缓存命中、未缓存输入、输出…）。</summary>
+    [ObservableProperty]
+    private string _aiUsageDetail = "还没有调用过模型。";
+
+    [ObservableProperty]
+    private bool _aiUsageExpanded;
+
+    /// <summary>本次会话累计用量（进程内，重启清零）。</summary>
+    private LlmUsage? _sessionUsage;
+
     /// <summary>当前配置可选的模型。</summary>
     public ObservableCollection<string> AiCurrentModelOptions { get; } = [];
 
@@ -712,14 +726,65 @@ public sealed partial class MainViewModel : ObservableObject
         Status = ok ? $"已切换到「{row.Name}」（模型 {row.Model}）。" : "切换失败：该配置已不存在。";
     }
 
+    /// <summary>把本次与累计用量刷到界面。</summary>
+    private void ApplyAiUsage(LlmUsage? usage)
+    {
+        if (usage is not null)
+            _sessionUsage = _sessionUsage is null ? usage : _sessionUsage.Add(usage);
+
+        int sessionTotal = _sessionUsage?.TotalTokens ?? 0;
+
+        AiUsageText = usage is null
+            ? $"本次 — ｜ 会话 {sessionTotal:N0} tok"
+            : $"本次 {usage.TotalTokens:N0} tok ｜ 会话 {sessionTotal:N0} tok";
+
+        if (usage is null)
+        {
+            AiUsageDetail = "本次没有拿到用量（服务端未返回 usage 字段）。";
+            return;
+        }
+
+        LlmUsage session = _sessionUsage!;
+
+        var text = new System.Text.StringBuilder();
+        text.AppendLine($"提供方 / 模型：{_agent.ProviderName} / {AiCurrentModel}");
+        text.AppendLine($"—— 本次 ——");
+        text.AppendLine($"未缓存输入：{usage.UncachedInputTokens:N0} tok");
+        text.AppendLine($"缓存读取：{usage.CachedTokens:N0} tok（命中 {usage.CacheHitRate:P1}）");
+        text.AppendLine($"输出：{usage.CompletionTokens:N0} tok");
+        text.AppendLine($"合计：{usage.TotalTokens:N0} tok");
+        text.AppendLine($"—— 本会话累计 ——");
+        text.AppendLine($"未缓存输入：{session.UncachedInputTokens:N0} tok");
+        text.AppendLine($"缓存读取：{session.CachedTokens:N0} tok（命中 {session.CacheHitRate:P1}）");
+        text.AppendLine($"输出：{session.CompletionTokens:N0} tok");
+        text.AppendLine($"合计：{session.TotalTokens:N0} tok");
+
+        AiUsageDetail = text.ToString().TrimEnd();
+    }
+
     private static string Truncate(string text, int max) =>
         text.Length <= max ? text : text[..(max - 1)] + "…";
 
+    /// <summary>
+    /// 运行 AI 任务。
+    ///
+    /// 注意：这个方法曾经因为一次整段替换**丢了 [RelayCommand]**，
+    /// 导致界面上按钮绑不到 `RunAiCommand`、点击毫无反应且没有任何日志。
+    /// 现在入口会先记一条日志，`IsBusy` 挡掉也会记——避免再出现"静默无反应"。
+    /// </summary>
+    [RelayCommand]
     private async Task RunAiAsync()
     {
+        _logger.Info("AI 任务触发", new Dictionary<string, object?>
+        {
+            ["goal"] = AiGoal,
+            ["busy"] = IsBusy
+        });
+
         if (string.IsNullOrWhiteSpace(AiGoal))
         {
             Status = "请先输入目标。";
+            _logger.Warn("AI 任务被跳过：目标为空");
             return;
         }
 
@@ -746,6 +811,8 @@ public sealed partial class MainViewModel : ObservableObject
                         (invocation.ErrorCode is null ? "" : $"  {invocation.ErrorCode}"));
                 }
             }
+
+            ApplyAiUsage(result.Usage);
 
             if (result.Completed)
             {

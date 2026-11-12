@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
 using CameraControl.Application.Diagnostics;
@@ -52,6 +53,30 @@ public partial class App : System.Windows.Application
         catch
         {
             // 记日志失败不能影响启动
+        }
+
+        // 把 WPF 绑定错误接入日志。
+        // 绑定失败不会抛异常，界面表现只有"点了没反应"——不接进来就永远查不到。
+        try
+        {
+            IAppLogger? logger = _services.GetService<IAppLogger>();
+
+            if (logger is not null)
+            {
+                PresentationTraceSources.Refresh();
+
+                TraceSource? bindingSource = PresentationTraceSources.DataBindingSource;
+
+                if (bindingSource is not null)
+                {
+                    bindingSource.Listeners.Add(new Diagnostics.WpfBindingTraceListener(logger));
+                    bindingSource.Switch.Level = SourceLevels.Warning;
+                }
+            }
+        }
+        catch
+        {
+            // 诊断接不上也不能影响启动
         }
 
         string? smokeOutput = GetArgValue(e.Args, "--smoke-test");
@@ -126,6 +151,18 @@ public partial class App : System.Windows.Application
         });
 
         if (viewModel is not null)
+        // 回归：命令属性必须真实生成。
+        // 曾经 RunAiAsync 误删 [RelayCommand]，按钮绑不到命令、点击毫无反应，
+        // 而 WPF 绑定失败既不抛异常也不进日志——只能靠这条检查抓。
+        Check("AI 运行命令存在", () =>
+        {
+            object? command = typeof(MainViewModel).GetProperty("RunAiCommand")?.GetValue(viewModel);
+
+            if (command is null)
+                throw new InvalidOperationException(
+                    "RunAiCommand 为空：RunAiAsync 可能缺少 [RelayCommand]，界面按钮会点了没反应。");
+        });
+
         {
             Check("执行启动自检", () => RunSelfCheck(viewModel));
 

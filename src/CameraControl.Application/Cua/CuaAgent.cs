@@ -156,6 +156,16 @@ public sealed class CuaAgent : IAiAgent
 
             totalUsage = Accumulate(totalUsage, response.Usage);
 
+            // 每轮用量落日志：不然只能靠服务商控制台猜钱花在哪
+            _logger.Info("AI 单轮用量", new Dictionary<string, object?>
+            {
+                ["step"] = step,
+                ["prompt"] = response.Usage?.PromptTokens,
+                ["cached"] = response.Usage?.CachedTokens,
+                ["completion"] = response.Usage?.CompletionTokens,
+                ["total"] = response.Usage?.TotalTokens
+            });
+
             IReadOnlyList<LlmToolCall> toolCalls = response.Message.ToolCalls ?? [];
 
             if (toolCalls.Count == 0)
@@ -297,15 +307,11 @@ public sealed class CuaAgent : IAiAgent
         return text[..MaxToolResultChars] + "…(已截断)";
     }
 
-    private static LlmUsage? Accumulate(LlmUsage? total, LlmUsage? delta)
-    {
-        if (delta is null) return total;
-        if (total is null) return delta;
-
-        return new LlmUsage(
-            total.PromptTokens + delta.PromptTokens,
-            total.CompletionTokens + delta.CompletionTokens);
-    }
+    private static LlmUsage? Accumulate(LlmUsage? total, LlmUsage? delta) => total is null
+        ? delta
+        : delta is null
+            ? total
+            : total.Add(delta);
 
     private static AiTaskResult Failure(
         AiStopReason reason,

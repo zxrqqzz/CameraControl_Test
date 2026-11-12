@@ -293,6 +293,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
@@ -463,8 +464,25 @@
                                 BorderBrush="{StaticResource AccentBrush}" />
                     </Grid>
 
+                    <!-- 用量：标题一行，点开看明细（缓存命中 / 未缓存输入 / 输出） -->
+                    <Expander Grid.Row="2"
+                              Margin="0,8,0,0"
+                              IsExpanded="{Binding AiUsageExpanded, Mode=TwoWay}"
+                              Foreground="{StaticResource MutedBrush}">
+                        <Expander.Header>
+                            <TextBlock Text="{Binding AiUsageText}" FontSize="11" />
+                        </Expander.Header>
+                        <Border BorderBrush="{StaticResource BorderBrushSoft}"
+                                BorderThickness="1" CornerRadius="4"
+                                Padding="10" Margin="0,4,0,0">
+                            <TextBlock Text="{Binding AiUsageDetail}"
+                                       FontFamily="Consolas" FontSize="11"
+                                       TextWrapping="Wrap" />
+                        </Border>
+                    </Expander>
+
                     <!-- 步骤 + 答复 -->
-                    <Grid Grid.Row="2">
+                    <Grid Grid.Row="3">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="12" />
