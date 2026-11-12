@@ -163,6 +163,36 @@ public partial class App : System.Windows.Application
                     "RunAiCommand 为空：RunAiAsync 可能缺少 [RelayCommand]，界面按钮会点了没反应。");
         });
 
+        // Markdown 渲染：覆盖标题/列表/表格/代码块/链接，确认不抛且真的产出了内容。
+        // 渲染器在代码后台调用；正常运行时崩了只会看到空白，只能靠这里抓。
+        Check("Markdown 渲染", () =>
+        {
+            const string sample = """
+            ## 相机情况
+            当前有 **2 台** 设备，其中 `Integrated Camera` 可采集。
+
+            - 可采集：1 台
+            - 仅列出：1 台（红外）
+
+            | 名称 | 类型 |
+            |---|---|
+            | Integrated Camera | Uvc |
+
+            ```csharp
+            var ok = true;
+            ```
+
+            [安全链接](https://example.com)
+            [不安全链接](file:///C:/Windows)
+            """;
+
+            System.Windows.Documents.FlowDocument document =
+                CameraControl.Presentation.Markdown.MarkdownRenderer.Render(sample);
+
+            if (document.Blocks.Count < 4)
+                throw new InvalidOperationException("Markdown 渲染块数异常：" + document.Blocks.Count);
+        });
+
         {
             Check("执行启动自检", () => RunSelfCheck(viewModel));
 

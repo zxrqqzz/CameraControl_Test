@@ -504,12 +504,11 @@
                         </GroupBox>
 
                         <GroupBox Grid.Column="2" Header="模型答复">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                <TextBlock Text="{Binding AiAnswer}"
-                                           TextWrapping="Wrap"
-                                           FontSize="13"
-                                           Margin="6" />
-                            </ScrollViewer>
+                            <!-- 文档由代码后台把 AiAnswer 的 Markdown 渲染后赋入 -->
+                            <FlowDocumentScrollViewer x:Name="AnswerViewer"
+                                                      VerticalScrollBarVisibility="Auto"
+                                                      Margin="6"
+                                                      IsToolBarVisible="False" />
                         </GroupBox>
                     </Grid>
                 </Grid>

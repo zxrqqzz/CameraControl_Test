@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!-- 仅用于解析 Markdown（纯托管、MIT）；渲染完全由本项目自己实现 -->
+    <PackageReference Include="Markdig" Version="0.38.0" />
   </ItemGroup>
 
   <ItemGroup>
