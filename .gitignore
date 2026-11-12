@@ -363,4 +363,5 @@ MigrationBackup/
 FodyWeavers.xsd
 # 公开测试数据集（不入库，见 docs/09 的下载地址与校验值）
 testdata/
-
+# 运行时数据目录（配置含 DPAPI 加密的密钥、审计、日志）
+/data/

@@ -76,48 +76,118 @@ public sealed class JsonSettingsStore : ISettingsStore
         ArgumentNullException.ThrowIfNull(value);
 
         string path = PathFor(key);
-        string temp = path + ".tmp";
 
         lock (_sync)
         {
             string json = JsonSerializer.Serialize(value, Options);
 
-            // 重试：新建的 .tmp 偶尔会被杀软/索引器/备份软件短暂占用，
-            // 表现为 UnauthorizedAccessException 或 IOException。
-            // 一次失败就报错会让用户以为"配置坏了"，其实稍等就能写进去。
-            const int maxAttempts = 4;
+            // 三级兜底。为什么不用单一策略：
+            // 实测在用户机器上"临时文件+替换"连续 4 次都被拒绝（UnauthorizedAccess），
+            // 但手动写同名文件却成功——说明拦截与写法/文件名/时机有关。
+            // 多试几种写法，能把"偶发被拦"和"真写不进去"区分开。
+            (string Name, Action Run)[] strategies =
+            [
+                ("临时文件+原子替换", () =>
+                {
+                    // 唯一名字：避免与上次残留或其它进程持有的固定 .tmp 冲突
+                    string temp = $"{path}.{Guid.NewGuid():N}"[..(path.Length + 9)] + ".tmp";
+                    File.WriteAllText(temp, json);
+                    File.Move(temp, path, overwrite: true);
+                }),
+                ("固定临时文件", () =>
+                {
+                    string temp = path + ".tmp";
+                    File.WriteAllText(temp, json);
+                    File.Move(temp, path, overwrite: true);
+                }),
+                ("直接覆盖目标文件", () => File.WriteAllText(path, json))
+            ];
+
+            var failures = new List<string>();
             Exception? lastError = null;
 
-            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            foreach ((string name, Action run) in strategies)
             {
-                try
+                for (int attempt = 1; attempt <= 2; attempt++)
                 {
-                    // 目录可能被外部删掉，每次写入前确保存在
-                    Directory.CreateDirectory(_directory);
+                    try
+                    {
+                        Directory.CreateDirectory(_directory);
+                        run();
+                        return;
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        lastError = ex;
 
-                    File.WriteAllText(temp, json);
-
-                    // overwrite:true 比 File.Replace 宽容（后者在某些文件系统上会抛 Access denied）
-                    File.Move(temp, path, overwrite: true);
-
-                    return;
+                        if (attempt == 1) Thread.Sleep(40);
+                    }
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    lastError = ex;
 
-                    TryDelete(temp);
-
-                    if (attempt < maxAttempts)
-                        Thread.Sleep(30 * attempt);
-                }
+                failures.Add($"{name}: {lastError?.GetType().Name} / {lastError?.Message}");
             }
 
             throw new SettingsPersistenceException(
                 path,
-                maxAttempts,
-                lastError!);
+                attempts: strategies.Length * 2,
+                lastError!,
+                failures,
+                Probe());
         }
+    }
+
+    /// <summary>
+    /// 落盘失败时的现场诊断。
+    ///
+    /// 目的：区分"整个目录写不了"（权限/完整性级别问题）与
+    /// "只有某个文件名被拦"（安全软件规则），这两种的处置完全不同。
+    /// </summary>
+    private string Probe()
+    {
+        var report = new System.Text.StringBuilder();
+
+        report.Append("目录存在=").Append(Directory.Exists(_directory));
+
+        try
+        {
+            string probeFile = Path.Combine(_directory, $"probe-{Guid.NewGuid():N}.txt");
+            File.WriteAllText(probeFile, "probe");
+            File.Delete(probeFile);
+            report.Append("；随机名可写=是");
+        }
+        catch (Exception ex)
+        {
+            report.Append("；随机名可写=否(").Append(ex.GetType().Name).Append(')');
+        }
+
+        try
+        {
+            string probeTmp = Path.Combine(_directory, $"probe-{Guid.NewGuid():N}.json.tmp");
+            File.WriteAllText(probeTmp, "probe");
+            File.Delete(probeTmp);
+            report.Append("；.tmp 后缀可写=是");
+        }
+        catch (Exception ex)
+        {
+            report.Append("；.tmp 后缀可写=否(").Append(ex.GetType().Name).Append(')');
+        }
+
+        try
+        {
+            using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            report.Append("；用户=").Append(identity.Name);
+
+            bool elevated = new System.Security.Principal.WindowsPrincipal(identity)
+                .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+
+            report.Append(elevated ? "（管理员）" : "（普通用户）");
+        }
+        catch
+        {
+            // 拿不到身份信息不影响主流程
+        }
+
+        return report.ToString();
     }
 
     /// <summary>清理残留的临时文件；失败无所谓，下次还会再建。</summary>
@@ -143,15 +213,18 @@ public sealed class JsonSettingsStore : ISettingsStore
 /// </summary>
 public sealed class SettingsPersistenceException : Exception
 {
-    public SettingsPersistenceException(string path, int attempts, Exception inner)
-        : base(
-            $"配置写入失败（已尝试 {attempts} 次）：{path}\n" +
-            $"原始错误：{inner.GetType().Name} / {inner.Message}\n" +
-            "常见原因：安全软件锁定、文件被占用、目录权限不足。可稍后重试；若持续失败，请检查该目录权限。",
-            inner)
+    public SettingsPersistenceException(
+        string path,
+        int attempts,
+        Exception inner,
+        IReadOnlyList<string>? strategies = null,
+        string? probe = null)
+        : base(BuildMessage(path, attempts, inner, strategies, probe), inner)
     {
         Path = path;
         Attempts = attempts;
+        Strategies = strategies ?? [];
+        Probe = probe;
     }
 
     /// <summary>写入目标路径。</summary>
@@ -159,4 +232,38 @@ public sealed class SettingsPersistenceException : Exception
 
     /// <summary>尝试次数。</summary>
     public int Attempts { get; }
+
+    /// <summary>每种写入策略的失败摘要。</summary>
+    public IReadOnlyList<string> Strategies { get; }
+
+    /// <summary>现场诊断（目录能否写、后缀是否被拦、进程身份）。</summary>
+    public string? Probe { get; }
+
+    private static string BuildMessage(
+        string path,
+        int attempts,
+        Exception inner,
+        IReadOnlyList<string>? strategies,
+        string? probe)
+    {
+        var text = new System.Text.StringBuilder();
+
+        text.AppendLine($"配置写入失败（已尝试 {attempts} 次）：{path}");
+        text.AppendLine($"原始错误：{inner.GetType().Name} / {inner.Message}");
+
+        if (strategies is { Count: > 0 })
+        {
+            text.AppendLine("各策略结果：");
+            foreach (string item in strategies) text.AppendLine("  · " + item);
+        }
+
+        if (!string.IsNullOrWhiteSpace(probe))
+            text.AppendLine($"现场诊断：{probe}");
+
+        text.Append(
+            "判断：若「随机名可写=是」而配置仍失败，多半是安全软件按文件名/进程拦截；" +
+            "若「随机名可写=否」，是目录权限或进程完整性级别问题。");
+
+        return text.ToString();
+    }
 }

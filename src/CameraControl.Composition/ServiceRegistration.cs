@@ -44,11 +44,105 @@ public sealed record CompositionOptions(
 /// </summary>
 public static class ServiceRegistration
 {
-    /// <summary>解析数据目录（公开出来便于宿主显示"日志在哪"）。</summary>
-    public static string ResolveDataDirectory(string? dataDirectory = null) =>
-        dataDirectory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "CameraControl");
+    private static string? _resolvedDataDirectory;
+
+    /// <summary>
+    /// 解析数据目录（公开出来便于宿主显示"日志在哪"）。
+    ///
+    /// **默认放在程序旁边**（可移植，不写 C 盘用户目录）。
+    /// 实测有机器上 `%LocalAppData%\CameraControl` 的 ACL 完全正常
+    /// （用户 FullControl、可继承），但进程连随机名文件都建不了——
+    /// 属于外部拦截（安全软件按进程拦写入），换到程序目录通常就通了。
+    ///
+    /// 顺序：
+    /// 1. 仓库根下的 <c>data</c>（源码运行时；让主程序与 Agent CLI **共用**同一份配置）
+    /// 2. 可执行文件旁的 <c>data</c>（发布后的绿色版布局）
+    /// 3. LocalAppData → 换名 → Roaming → ProgramData → TEMP（逐级兜底）
+    ///
+    /// 每个候选都用**真实写一个随机文件**来验证，不只看权限位。
+    /// </summary>
+    public static string ResolveDataDirectory(string? dataDirectory = null)
+    {
+        if (!string.IsNullOrWhiteSpace(dataDirectory)) return dataDirectory;
+
+        if (_resolvedDataDirectory is not null) return _resolvedDataDirectory;
+
+        var candidates = new List<string>();
+
+        string? repositoryRoot = FindRepositoryRoot();
+        if (repositoryRoot is not null)
+            candidates.Add(Path.Combine(repositoryRoot, "data"));
+
+        candidates.Add(Path.Combine(AppContext.BaseDirectory, "data"));
+
+        string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        string programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+
+        candidates.Add(Path.Combine(local, "CameraControl"));
+        candidates.Add(Path.Combine(local, "CameraControl-Data"));
+        candidates.Add(Path.Combine(roaming, "CameraControl"));
+        candidates.Add(Path.Combine(programData, "CameraControl"));
+        candidates.Add(Path.Combine(Path.GetTempPath(), "CameraControl"));
+
+        foreach (string candidate in candidates)
+        {
+            if (IsWritable(candidate))
+            {
+                _resolvedDataDirectory = candidate;
+                return candidate;
+            }
+        }
+
+        // 全都不行：仍返回首选，让错误信息指向它，而不是悄悄换地方
+        _resolvedDataDirectory = candidates[0];
+        return candidates[0];
+    }
+
+    /// <summary>
+    /// 从可执行文件目录向上找仓库根（含 CameraControl.slnx）。
+    /// 找到就用 <c>&lt;仓库&gt;\data</c>，让 WPF 与 Agent CLI 共用一份配置/日志。
+    /// </summary>
+    private static string? FindRepositoryRoot()
+    {
+        try
+        {
+            DirectoryInfo? directory = new(AppContext.BaseDirectory);
+
+            for (int depth = 0; depth < 8 && directory is not null; depth++)
+            {
+                if (File.Exists(Path.Combine(directory.FullName, "CameraControl.slnx")))
+                    return directory.FullName;
+
+                directory = directory.Parent;
+            }
+        }
+        catch
+        {
+            // 找不到就当发布版处理
+        }
+
+        return null;
+    }
+
+    /// <summary>真实写一个探针文件来判断可写（只看权限位不可靠）。</summary>
+    private static bool IsWritable(string directory)
+    {
+        try
+        {
+            Directory.CreateDirectory(directory);
+
+            string probe = Path.Combine(directory, $"probe-{Guid.NewGuid():N}.tmp");
+            File.WriteAllText(probe, "probe");
+            File.Delete(probe);
+
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
 
     /// <summary>构造完整容器。调用方负责在退出时 Dispose。</summary>
     /// <param name="options">组合选项。</param>

@@ -76,8 +76,11 @@ public sealed class JsonSettingsStoreTests : IDisposable
         Assert.True(store.TryLoad<Payload>("demo", out Payload? loaded));
         Assert.Equal("ok", loaded!.Name);
 
-        // 收尾后不应留下 .tmp
-        Assert.False(File.Exists(temp));
+        // 连续写两次也必须稳定（不依赖"清掉旧 .tmp"这一实现细节）
+        store.Save("demo", new Payload("again", 4));
+
+        Assert.True(store.TryLoad<Payload>("demo", out Payload? second));
+        Assert.Equal("again", second!.Name);
     }
 
     [Fact]
