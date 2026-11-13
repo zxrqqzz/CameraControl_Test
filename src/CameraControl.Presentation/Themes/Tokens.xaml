@@ -7,7 +7,7 @@
       · 交互才丰富：明黄 #FFD400 + 半调网点只出现在能点、能选、有状态的地方——
         主按钮、次按钮悬停、选中项（导航/列表/页签/复选）、输入聚焦、徽标、工具提示。
       · 网点很克制：6px 一格、12% 黑，远看是"黄底有印刷颗粒"，近看才是点。
-        不要网点：把 PopYellowHalftoneBrush 换成 PopYellowBrush 即可（一处）。
+        不要网点：把 Controls/AppStyles 里的 AccentHalftoneBrush 换成 AccentBrush（全局替换）。
       · 文字黑；白字只出现在深色块上（黑/红/蓝底）。
       · 语义色保留高饱和，并一律配 2px 黑框。
 
@@ -35,11 +35,17 @@
     <SolidColorBrush x:Key="InkHoverBrush"  Color="#2A2A2A" />
     <SolidColorBrush x:Key="InkSoftBrush"   Color="#F6F5F0" />    <!-- 浅灰底（少数地方仍要中性底） -->
 
-    <!-- ═══════════════ 波普明黄 ═══════════════ -->
-    <SolidColorBrush x:Key="PopYellowBrush"      Color="#FFD400" /> <!-- 主色 -->
-    <SolidColorBrush x:Key="PopYellowHoverBrush" Color="#FFC400" /> <!-- 悬停 -->
-    <SolidColorBrush x:Key="PopYellowDeepBrush"  Color="#E8BE00" /> <!-- 按下 -->
-    <SolidColorBrush x:Key="PopYellowSoftBrush"  Color="#FFF7C2" /> <!-- 淡黄底：悬停/选中行 -->
+    <!-- ═══════════════ 主色槽位（Accent）══════════════════════════════════
+         这几个键是"可换色"的：控件样式统一用 {DynamicResource Accent*} 引用，
+         运行时由 Services/ThemeService 整组替换（调色卡就是改这 5 个键）。
+         默认 = 波普明黄。注意必须用 DynamicResource —— StaticResource 会把
+         加载时那一个刷子实例焊死，换色不生效。 -->
+    <SolidColorBrush x:Key="AccentBrush"      Color="#FFD400" /> <!-- 主色：主按钮/选中/强调 -->
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#FFC400" /> <!-- 悬停 -->
+    <SolidColorBrush x:Key="AccentDeepBrush"  Color="#E8BE00" /> <!-- 按下/描边 -->
+    <SolidColorBrush x:Key="AccentSoftBrush"  Color="#FFF7C2" /> <!-- 淡底：悬停/聚焦 -->
+    <!-- 骑在主色块上的文字色（亮底黑字/暗底白字，运行时按亮度重算） -->
+    <SolidColorBrush x:Key="TextOnAccentBrush" Color="#0B0B0B" />
 
     <!-- ═══════════════ 线 ═══════════════ -->
     <SolidColorBrush x:Key="BorderStrongBrush" Color="#0B0B0B" /> <!-- 硬框 2px -->
@@ -54,7 +60,7 @@
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="#3A3A3A" />
     <SolidColorBrush x:Key="TextDimBrush"       Color="#6B6B6B" />
     <SolidColorBrush x:Key="TextOnInkBrush"     Color="#FFFFFF" /> <!-- 黑/红/蓝底上的字 -->
-    <SolidColorBrush x:Key="SelectionBrush"     Color="#FFD400" /> <!-- 文本选中：明黄 -->
+    <!-- 文本选中色：由样式直接引用 AccentSoftBrush（见 Controls.xaml） -->
 
     <!-- ═══════════════ 语义色（高饱和 + 黑框） ═══════════════ -->
     <SolidColorBrush x:Key="InfoBrush"         Color="#0057FF" />
@@ -70,8 +76,8 @@
     <SolidColorBrush x:Key="DangerHoverBrush"  Color="#C00024" />
     <SolidColorBrush x:Key="DangerSoftBrush"   Color="#FFE3E8" />
 
-    <!-- ═══════════════ 自锁按键（抬起=未生效 / 按下=已生效） ═══════════════ -->
-    <SolidColorBrush x:Key="LatchPressedBrush"       Color="#FFD400" />
+    <!-- ═══════════════ 自锁按键（抬起=未生效 / 按下=已生效） ═══════════════
+         "按下"的底色直接引用主色槽位（见 Controls.xaml 的 LatchButtonStyle）。 -->
     <SolidColorBrush x:Key="LatchPressedBorderBrush" Color="#0B0B0B" />
 
     <!-- ═══════════════ 圆角令牌（全部归零 = 直角，波普不要圆角） ═══════════════ -->
@@ -84,7 +90,8 @@
          6px 一格：明黄底 + 12% 黑的圆点。远看是"黄底带印刷颗粒"，近看才是点。
          用法：交互填充（主按钮/选中项/徽标/箭头块/页标题块）用它代替纯黄；
          背景与卡片一律不用——这就是"极简底 + 半调交互"的分界线。 -->
-    <DrawingBrush x:Key="PopYellowHalftoneBrush" TileMode="Tile"
+    <!-- 默认（波普黄）的网点；运行时 ThemeService 会按当前主色重建同名键 -->
+    <DrawingBrush x:Key="AccentHalftoneBrush" TileMode="Tile"
                   Viewport="0,0,6,6" ViewportUnits="Absolute"
                   Viewbox="0,0,6,6" ViewboxUnits="Absolute">
         <DrawingBrush.Drawing>

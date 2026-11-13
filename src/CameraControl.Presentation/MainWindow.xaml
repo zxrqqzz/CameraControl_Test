@@ -37,6 +37,14 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 调色卡：点开选主色，选完立即生效并记住 -->
+                    <ToggleButton x:Name="PaletteToggle"
+                                  Content="调色"
+                                  Style="{StaticResource ToggleButtonStyle}"
+                                  Padding="12,4" FontSize="12"
+                                  Margin="0,0,8,0"
+                                  ToolTip="切换界面主色（交互色）" />
+
                     <Button Content="AI 设置"
                             Padding="12,5" FontSize="12"
                             Command="{Binding OpenAiSettingsCommand}"
@@ -44,6 +52,94 @@
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- 调色卡浮层：色卡 = 当前主色的网点刷，点一下整站换色 -->
+        <Popup Grid.Row="0" x:Name="PalettePopup"
+               IsOpen="{Binding IsChecked, ElementName=PaletteToggle, Mode=TwoWay}"
+               PlacementTarget="{Binding ElementName=PaletteToggle}"
+               Placement="Bottom"
+               StaysOpen="False"
+               AllowsTransparency="True"
+               PopupAnimation="Fade"
+               VerticalOffset="6">
+            <Border Background="{StaticResource CardBrush}"
+                    BorderBrush="{StaticResource InkBrush}"
+                    BorderThickness="2"
+                    Padding="14,12"
+                    DataContext="{Binding Appearance}">
+                <StackPanel Width="270">
+                    <TextBlock Text="界面主色" Style="{StaticResource CardHeader}" />
+                    <TextBlock Margin="0,4,0,12" FontSize="11"
+                               Foreground="{StaticResource TextDimBrush}"
+                               TextWrapping="Wrap"
+                               Text="只换「能点 / 已选」的颜色，背景仍是白纸黑线。" />
+
+                    <ItemsControl ItemsSource="{Binding Swatches}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,8,10" Width="56">
+                                    <Button Padding="0"
+                                            BorderThickness="0"
+                                            Background="Transparent"
+                                            Style="{StaticResource GhostButton}"
+                                            Command="{Binding DataContext.ApplyCommand,
+                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="{Binding Name}">
+                                        <Border Width="52" Height="34" Background="{Binding Halftone}">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
+                                                    <Setter Property="BorderThickness" Value="2" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter Property="BorderThickness" Value="4" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+                                    </Button>
+
+                                    <TextBlock Text="{Binding Name}"
+                                               FontSize="11"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,4,0,0" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0"
+                            Margin="0,2,0,10" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock FontSize="11" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextDimBrush}" Text="当前：" />
+                            <TextBlock FontSize="11" FontWeight="Bold" VerticalAlignment="Center"
+                                       Text="{Binding CurrentName}" />
+                        </StackPanel>
+
+                        <Button Grid.Column="1" Content="恢复默认"
+                                Style="{StaticResource GhostButton}"
+                                Padding="8,3" FontSize="11"
+                                Command="{Binding ResetCommand}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Popup>
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
@@ -134,9 +230,10 @@
                                                                            FontSize="13" FontWeight="SemiBold"
                                                                            TextTrimming="CharacterEllipsis"
                                                                            ToolTip="{Binding Id}" />
+                                                                <!-- 次要文字不写死灰色：继承行的前景色 + 透明度，选中（主色底）时自动变浅 -->
                                                                 <TextBlock Text="{Binding KindText}"
                                                                            FontSize="11"
-                                                                           Foreground="{StaticResource TextDimBrush}"
+                                                                           Opacity="0.72"
                                                                            Margin="0,2,0,0"
                                                                            TextTrimming="CharacterEllipsis" />
                                                                 <TextBlock FontSize="11"

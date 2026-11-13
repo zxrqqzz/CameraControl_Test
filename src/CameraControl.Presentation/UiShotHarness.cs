@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -133,6 +134,38 @@ internal static class UiShotHarness
         Save(contextWindow.Content as FrameworkElement ?? contextWindow,
             Path.Combine(outputDirectory, "07-上下文管理.png"));
         contextWindow.Close();
+
+        // 换色验证：同一页面换主色后，所有交互色应当一起变（也留给人眼比对）。
+        // 用 Preview 而不是 Apply —— 目检不能改动用户保存的偏好。
+        if (tabs is not null)
+        {
+            ThemeService.Current.Preview("pop-cyan");
+            tabs.SelectedIndex = 0;
+            Pump();
+            Save(window.Content as FrameworkElement ?? window,
+                Path.Combine(outputDirectory, "08-换色-青-设备.png"));
+
+            ThemeService.Current.Preview("pop-pink");
+            tabs.SelectedIndex = 1;
+            Pump();
+            Save(window.Content as FrameworkElement ?? window,
+                Path.Combine(outputDirectory, "09-换色-品红-标定.png"));
+
+            ThemeService.Current.Preview(ThemeService.DefaultKey);
+            Pump();
+        }
+
+        // 调色卡本体（Popup 是独立窗口，只能单独渲染它的 Child）
+        if (window.FindName("PaletteToggle") is ToggleButton paletteToggle &&
+            window.FindName("PalettePopup") is Popup palettePopup &&
+            palettePopup.Child is FrameworkElement paletteCard)
+        {
+            paletteToggle.IsChecked = true;
+            Pump();
+            Save(paletteCard, Path.Combine(outputDirectory, "10-调色卡.png"));
+            paletteToggle.IsChecked = false;
+            Pump();
+        }
 
         window.Close();
     }

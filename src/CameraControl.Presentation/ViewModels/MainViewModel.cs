@@ -108,12 +108,16 @@ public sealed partial class MainViewModel : ObservableObject
         _logger = logger;
 
         Calibration = new CalibrationPanelViewModel(bus);
+        Appearance = new AppearanceViewModel(Services.ThemeService.Current);
 
         LoadAiSettings();
     }
 
     /// <summary>标定面板（采图 → 检测 → 求解）。</summary>
     public CalibrationPanelViewModel Calibration { get; }
+
+    /// <summary>调色卡：主色切换（顶栏「调色」）。</summary>
+    public AppearanceViewModel Appearance { get; }
 
     // ── 通用 ────────────────────────────────────────────────
 

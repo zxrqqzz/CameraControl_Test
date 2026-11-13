@@ -54,6 +54,19 @@ public partial class App : System.Windows.Application
             // 记日志失败不能影响启动
         }
 
+        // 外观偏好：套用上次选的主色（失败只记日志，回退默认黄）。
+        // 必须放在建 MainWindow 之前——调色卡的选中态要读到 CurrentKey。
+        try
+        {
+            ThemeService.Current.Initialize(
+                _services.GetRequiredService<CameraControl.Domain.Ports.ISettingsStore>(),
+                _services.GetService<IAppLogger>());
+        }
+        catch (Exception ex)
+        {
+            LogUnhandled(ex);
+        }
+
         // 把 WPF 绑定错误接入日志。
         // 绑定失败不会抛异常，界面表现只有"点了没反应"——不接进来就永远查不到。
         try
@@ -190,6 +203,28 @@ public partial class App : System.Windows.Application
             var store = _services!.GetRequiredService<CameraControl.Application.Cua.Context.IContextStore>();
 
             _ = new Views.ContextManagerWindow(store, "smoke-profile", new RefusingDialogService());
+        });
+
+        // 调色卡：换主色必须真的换掉资源。
+        // 这条能挡住"有人把样式里的 Accent* 从 DynamicResource 改回 StaticResource"——
+        // 那样界面看着没报错，换色却完全不生效，靠肉眼很难发现。
+        Check("调色卡换主色", () =>
+        {
+            ThemeService theme = ThemeService.Current;
+            string before = theme.CurrentKey;
+
+            theme.Preview("pop-cyan");
+
+            var expected = System.Windows.Media.Color.FromRgb(0x00, 0xB8, 0xD4);
+
+            if (System.Windows.Application.Current?.Resources["AccentBrush"] is not
+                System.Windows.Media.SolidColorBrush accent ||
+                accent.Color != expected)
+            {
+                throw new InvalidOperationException("换主色后 AccentBrush 没有更新，界面颜色不会变。");
+            }
+
+            theme.Preview(before);
         });
 
         Check("Markdown 渲染", () =>

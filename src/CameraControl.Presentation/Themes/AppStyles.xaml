@@ -64,7 +64,7 @@
     <Style x:Key="PageTitleMark" TargetType="Border">
         <Setter Property="Width" Value="10" />
         <Setter Property="Height" Value="28" />
-        <Setter Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
+        <Setter Property="Background" Value="{DynamicResource AccentHalftoneBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
         <Setter Property="BorderThickness" Value="2" />
         <Setter Property="Margin" Value="0,0,10,0" />
@@ -81,7 +81,7 @@
     <Style x:Key="SectionTitleMark" TargetType="Border">
         <Setter Property="Width" Value="8" />
         <Setter Property="Height" Value="17" />
-        <Setter Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
+        <Setter Property="Background" Value="{DynamicResource AccentHalftoneBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
         <Setter Property="BorderThickness" Value="2" />
         <Setter Property="Margin" Value="0,0,8,0" />
