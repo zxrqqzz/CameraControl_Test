@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CameraControl.Application.Commands;
+using CameraControl.Presentation.Markdown;
 using CameraControl.Presentation.Services;
 using CameraControl.Presentation.ViewModels;
 using CameraControl.Presentation.Views;
@@ -14,47 +15,67 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CameraControl.Presentation;
 
 /// <summary>
-/// 界面目检工具：把每个窗口渲染成 PNG（<c>--shot &lt;目录&gt;</c>）。
+/// 界面目检工具：把每个窗口渲染成 PNG（<c>--shot &lt;目录&gt; [--ai-only] [--demo-chat]</c>）。
 ///
 /// 为什么留着它：冒烟测试只能证明"XAML 能加载"，证明不了"看起来对不对"。
-/// 改完样式跑一次 <c>--shot</c>，逐张看过去，比来回启动点界面快得多，
-/// 也方便把改动前后的截图并排比对。
+/// 改完样式跑一次 <c>--shot</c>，逐张看过去，比来回启动点界面快得多。
 ///
-/// 只读不写业务数据：自己构造 ViewModel 与示例参数，跑完直接退出。
+/// 参数：
+///   --ai-only    只渲染 AI 页（迭代聊天界面时用，快）
+///   --demo-chat  给 AI 页灌一段示例对话（气泡/思考/步骤/用量都能看到）
 /// </summary>
 internal static class UiShotHarness
 {
-    public static int Run(string outputDirectory, IServiceProvider services)
+    public static int Run(string outputDirectory, IServiceProvider services, bool aiOnly = false, bool demoChat = false)
     {
         Directory.CreateDirectory(outputDirectory);
 
         try
         {
-            RunCore(outputDirectory, services);
+            RunCore(outputDirectory, services, aiOnly, demoChat);
             return 0;
         }
         catch (Exception ex)
         {
-            File.WriteAllText(Path.Combine(outputDirectory, "error.txt"), ex.ToString());
+            string detail = ex.ToString();
+
+            // XamlParseException 自带行号（ToString 不打印），补上便于定位
+            for (Exception? e = ex; e is not null; e = e.InnerException)
+            {
+                if (e is System.Windows.Markup.XamlParseException xaml)
+                {
+                    detail = $"XAML 位置：{xaml.BaseUri} 行 {xaml.LineNumber} 列 {xaml.LinePosition} {xaml.KeyContext}{Environment.NewLine}{detail}";
+                    break;
+                }
+            }
+
+            File.WriteAllText(Path.Combine(outputDirectory, "error.txt"), detail);
             return 2;
         }
     }
 
-    private static void RunCore(string outputDirectory, IServiceProvider services)
+    private static void RunCore(string outputDirectory, IServiceProvider services, bool aiOnly, bool demoChat)
     {
         var viewModel = ActivatorUtilities.CreateInstance<MainViewModel>(services);
         viewModel.Dialog = new MessageBoxDialogService();
 
-        try
+        if (demoChat)
         {
-            viewModel.RefreshCamerasCommand.ExecuteAsync(null).GetAwaiter().GetResult();
-            viewModel.RunSelfCheckCommand.ExecuteAsync(null).GetAwaiter().GetResult();
-            viewModel.RefreshMetricsCommand.Execute(null);
-            viewModel.RefreshAuditCommand.Execute(null);
+            SeedDemoConversation(viewModel);
         }
-        catch
+        else if (!aiOnly)
         {
-            // 没有相机也要能出图
+            try
+            {
+                viewModel.RefreshCamerasCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                viewModel.RunSelfCheckCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                viewModel.RefreshMetricsCommand.Execute(null);
+                viewModel.RefreshAuditCommand.Execute(null);
+            }
+            catch
+            {
+                // 没有相机也要能出图
+            }
         }
 
         var window = new MainWindow
@@ -72,6 +93,16 @@ internal static class UiShotHarness
         Pump();
 
         var tabs = window.FindName("MainTabs") as TabControl;
+
+        if (aiOnly)
+        {
+            if (tabs is not null) tabs.SelectedIndex = 3;
+            Pump();
+            Save(window.Content as FrameworkElement ?? window, Path.Combine(outputDirectory, "04-AI.png"));
+            window.Close();
+            return;
+        }
+
         string[] names = ["01-设备", "02-标定", "03-系统", "04-AI"];
 
         for (int i = 0; tabs is not null && i < names.Length; i++)
@@ -135,8 +166,7 @@ internal static class UiShotHarness
             Path.Combine(outputDirectory, "07-上下文管理.png"));
         contextWindow.Close();
 
-        // 换色验证：同一页面换主色后，所有交互色应当一起变（也留给人眼比对）。
-        // 用 Preview 而不是 Apply —— 目检不能改动用户保存的偏好。
+        // 换色验证：同一页面换主色后，所有交互色应当一起变
         if (tabs is not null)
         {
             ThemeService.Current.Preview("pop-cyan");
@@ -170,6 +200,42 @@ internal static class UiShotHarness
         window.Close();
     }
 
+    /// <summary>给 AI 页灌一段示例对话，用来目检气泡。</summary>
+    private static void SeedDemoConversation(MainViewModel viewModel)
+    {
+        const string answer = """
+        ## 相机情况
+
+        当前有 **2 台** 设备，其中 `Integrated Camera` 可采集。
+
+        | 名称 | 类型 | 可取流 |
+        |---|---|---|
+        | Integrated Camera | Uvc | 是 |
+        | Integrated IR Camera | Uvc | 否（红外） |
+        """;
+
+        viewModel.AiMessages.Add(ChatMessage.User("列出当前所有相机，并告诉我哪一台可以采集（顺便看看红外那台能不能取流）"));
+
+        ChatMessage done = ChatMessage.Assistant();
+        done.RoundFor(1).AppendReasoning("先列设备，看看有没有可采集的；红外只列出、不取流，这是隐私约束里的硬规则。");
+        done.RoundFor(2).AppendReasoning("拿到列表后按 CanCapture 分成两组，再用表格给结论。");
+        done.AppendStep("[1] OK  camera.list (12ms)");
+        done.AppendStep("[2] OK  capture.preview (238ms)");
+        done.Text = answer;
+        done.Document = MarkdownRenderer.Render(answer);
+        done.UsageLine = "本次 3,140 tok ｜ 会话 5,332 tok";
+        done.UsageDetail = "示例数据：真实明细在运行时生成。";
+        viewModel.AiMessages.Add(done);
+
+        ChatMessage streaming = ChatMessage.Assistant();
+        streaming.RoundFor(1).AppendReasoning("正在读取当前曝光时间…");
+        streaming.Text = "先读取相机当前的曝光参数，然后再判断是否需要调整…";
+        streaming.IsStreaming = true;
+        viewModel.AiMessages.Add(streaming);
+
+        viewModel.ChatScrollTick++;
+    }
+
     private static void Save(FrameworkElement element, string path)
     {
         element.UpdateLayout();
@@ -190,10 +256,7 @@ internal static class UiShotHarness
         encoder.Save(stream);
     }
 
-    /// <summary>
-    /// 裁掉透明边。RenderTargetBitmap 按元素尺寸出图，但实际渲染区常比它窄一圈，
-    /// 右边会留一条全透明带——不裁掉的话看图时容易被当成"多了一条黑边"。
-    /// </summary>
+    /// <summary>裁掉透明边（RenderTargetBitmap 的取景常比实际渲染区大一圈）。</summary>
     private static BitmapSource TrimTransparentEdges(RenderTargetBitmap bitmap, int width, int height)
     {
         int stride = width * 4;
@@ -222,7 +285,7 @@ internal static class UiShotHarness
         return new CroppedBitmap(bitmap, new Int32Rect(0, 0, maxX + 1, maxY + 1));
     }
 
-    /// <summary>把 UI 队列彻底跑空（布局 + 绑定 + 模板套用）。</summary>
+    /// <summary>把 UI 队列跑空（布局 + 绑定 + 模板套用）。</summary>
     private static void Pump()
     {
         for (int i = 0; i < 3; i++)

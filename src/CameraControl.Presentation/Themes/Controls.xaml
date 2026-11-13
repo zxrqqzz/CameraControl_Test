@@ -191,6 +191,17 @@
         </Setter>
     </Style>
 
+    <!-- 幽灵切换（用量这类"点开看一眼"的小开关）：透明底、无框、变灰 -->
+    <Style x:Key="GhostToggle" TargetType="ToggleButton" BasedOn="{StaticResource ToggleButtonStyle}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Padding" Value="6,1" />
+        <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
+    </Style>
+
     <!-- 自锁按键：抬起 = 白底 2px 黑框（未生效）；按下 = 黄底 3px 黑框（已生效） -->
     <Style x:Key="LatchButtonStyle" TargetType="ToggleButton">
         <Setter Property="Background" Value="{StaticResource CardBrush}" />

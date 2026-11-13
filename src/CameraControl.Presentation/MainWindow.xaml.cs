@@ -1,12 +1,18 @@
 using System.ComponentModel;
 using System.Windows.Input;
 using System.Windows;
-using CameraControl.Presentation.Markdown;
 using CameraControl.Presentation.ViewModels;
 
 namespace CameraControl.Presentation;
 
-/// <summary>主窗口。业务逻辑都在 <see cref="MainViewModel"/> 里，这里只做界面粘合。</summary>
+/// <summary>
+/// 主窗口。业务逻辑都在 <see cref="MainViewModel"/> 里，这里只做界面粘合。
+///
+/// 现在只剩两件"非绑定"的事：
+///   1) 输入框 Enter 发送 / Shift+Enter 换行（键盘语义）；
+///   2) 对话流自动滚到底（滚动位置不是可绑定属性，只能代码里滚）。
+/// Markdown 渲染已经搬进视图模型（每条消息自己带 FlowDocument），这里不再碰。
+/// </summary>
 public partial class MainWindow : Window
 {
     private MainViewModel? _subscribed;
@@ -16,7 +22,7 @@ public partial class MainWindow : Window
         InitializeComponent();
     }
 
-    /// <summary>DataContext 变化时重新挂钩：密钥输入缓冲 + Markdown 答复渲染。</summary>
+    /// <summary>DataContext 变化时重新挂钩：滚到底令牌。</summary>
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (_subscribed is not null)
@@ -25,45 +31,32 @@ public partial class MainWindow : Window
         if (e.NewValue is not MainViewModel viewModel) return;
 
         _subscribed = viewModel;
-
-
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
-        RenderAnswer(viewModel.AiAnswer);
+        // 首次进来（可能已经灌了历史）直接落到底部
+        Dispatcher.BeginInvoke(new Action(ScrollChatToEnd), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // 只关心答复：其余属性 WPF 会自己跟着绑定更新
-        if (e.PropertyName == nameof(MainViewModel.AiAnswer) && _subscribed is not null)
-            RenderAnswer(_subscribed.AiAnswer);
+        if (e.PropertyName != nameof(MainViewModel.ChatScrollTick)) return;
+
+        // 布局还没跑完就滚会滚不到位，排到后台优先级里再滚
+        Dispatcher.BeginInvoke(new Action(ScrollChatToEnd),
+            System.Windows.Threading.DispatcherPriority.Background);
     }
 
-    /// <summary>
-    /// 把 Markdown 渲染成 FlowDocument。
-    ///
-    /// 为什么放代码后台而不是绑一个转换器：FlowDocument 不是普通值，
-    /// 每次要新建实例、还要挂链接点击；用转换器会不停重建、且难处理异常。
-    /// 这里集中一处，渲染失败也不会连累界面（见 <see cref="MarkdownRenderer"/>）。
-    /// </summary>
-    private void RenderAnswer(string? markdown)
+    private void ScrollChatToEnd()
     {
         try
         {
-            AnswerViewer.Document = MarkdownRenderer.Render(markdown);
+            ChatScroll.ScrollToEnd();
         }
-        catch (Exception ex)
+        catch
         {
-            // 渲染失败退回纯文本，绝不让"看不懂格式"变成"程序崩了"
-            var document = new System.Windows.Documents.FlowDocument(
-                new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(
-                    $"{markdown}\n\n（Markdown 渲染失败：{ex.Message}，已按纯文本显示）")));
-
-            AnswerViewer.Document = document;
+            // 窗口还没成形时滚动会抛，忽略即可
         }
     }
-
-
 
     /// <summary>
     /// 输入框快捷键：Enter 发送，Shift+Enter 换行（聊天工具习惯）。

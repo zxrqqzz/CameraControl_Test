@@ -10,6 +10,7 @@ using CameraControl.Domain.Cameras;
 using CameraControl.Domain.Capture;
 using CameraControl.Domain.Ports;
 using CameraControl.Infrastructure.Ai;
+using CameraControl.Presentation.Markdown;
 using CameraControl.Presentation.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -111,6 +112,7 @@ public sealed partial class MainViewModel : ObservableObject
         Appearance = new AppearanceViewModel(Services.ThemeService.Current);
 
         LoadAiSettings();
+        LoadAiHistory();
     }
 
     /// <summary>标定面板（采图 → 检测 → 求解）。</summary>
@@ -355,27 +357,28 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _aiGoal = "列出当前所有相机，并告诉我哪一台可以采集";
 
-    [ObservableProperty]
-    private string _aiAnswer = string.Empty;
+    /// <summary>
+    /// 对话流：用户消息靠右、助手消息靠左，一条一轮。
+    /// 历史（本地上下文里的条目）在启动 / 切换配置时灌进来，本次运行的消息直接追加。
+    /// </summary>
+    public ObservableCollection<ChatMessage> AiMessages { get; } = [];
 
-    /// <summary>用量栏标题：本次 + 会话累计。</summary>
-    [ObservableProperty]
-    private string _aiUsageText = "用量 —";
+    /// <summary>对话区是否为空（决定要不要显示"问点什么试试"的占位）。</summary>
+    public bool HasAiMessages => AiMessages.Count > 0;
 
-    /// <summary>展开后的明细（缓存命中、未缓存输入、输出…）。</summary>
+    /// <summary>输入行右侧显示的"模型 · 强度"（点击打开 AI 设置）。</summary>
     [ObservableProperty]
-    private string _aiUsageDetail = "还没有调用过模型。";
+    private string _aiModelLine = "未配置模型";
 
+    /// <summary>滚到底的令牌：每来一段增量就 +1，视图侧据此把对话区滚到底。</summary>
     [ObservableProperty]
-    private bool _aiUsageExpanded;
+    private int _chatScrollTick;
 
     /// <summary>本次会话累计用量（进程内，重启清零）。</summary>
     private LlmUsage? _sessionUsage;
 
     /// <summary>当前配置可选的模型。</summary>
     public ObservableCollection<string> AiCurrentModelOptions { get; } = [];
-
-    public ObservableCollection<string> AiSteps { get; } = [];
 
     public IDialogService Dialog { get; set; } = new RefusingDialogService();
 
@@ -445,6 +448,14 @@ public sealed partial class MainViewModel : ObservableObject
         AiSettingsSummary = active is null
             ? "还没有配置模型 —— 点右侧「设置…」填入密钥"
             : $"{active.Name} · {active.Model} · 强度 {active.Strength}";
+
+        // 输入行右侧那一行"模型 · 强度"（点它打开 AI 设置）
+        AiModelLine = active is null
+            ? "未配置模型"
+            : $"{active.Model} · 强度 {active.Strength}";
+
+        // 换配置 = 换上下文文件，对话区要跟着换
+        LoadAiHistory();
         RefreshContextInfo();
 
         Status = settings.Profiles.Count == 0
@@ -744,21 +755,21 @@ public sealed partial class MainViewModel : ObservableObject
         Status = ok ? $"已切换到「{row.Name}」（模型 {row.Model}）。" : "切换失败：该配置已不存在。";
     }
 
-    /// <summary>把本次与累计用量刷到界面。</summary>
-    private void ApplyAiUsage(LlmUsage? usage)
+    /// <summary>把本次与累计用量写进这条助手消息（用量小框里显示）。</summary>
+    private void ApplyAiUsage(LlmUsage? usage, ChatMessage message)
     {
         if (usage is not null)
             _sessionUsage = _sessionUsage is null ? usage : _sessionUsage.Add(usage);
 
         int sessionTotal = _sessionUsage?.TotalTokens ?? 0;
 
-        AiUsageText = usage is null
-            ? $"本次 — ｜ 会话 {sessionTotal:N0} tok"
+        message.UsageLine = usage is null
+            ? $"用量 — ｜ 会话 {sessionTotal:N0} tok"
             : $"本次 {usage.TotalTokens:N0} tok ｜ 会话 {sessionTotal:N0} tok";
 
         if (usage is null)
         {
-            AiUsageDetail = "本次没有拿到用量（服务端未返回 usage 字段）。";
+            message.UsageDetail = "本次没有拿到用量（服务端未返回 usage 字段）。";
             return;
         }
 
@@ -766,40 +777,29 @@ public sealed partial class MainViewModel : ObservableObject
 
         var text = new System.Text.StringBuilder();
         text.AppendLine($"提供方 / 模型：{_agent.ProviderName} / {AiCurrentModel}");
-        text.AppendLine($"—— 本次 ——");
+        text.AppendLine("—— 本次 ——");
         text.AppendLine($"未缓存输入：{usage.UncachedInputTokens:N0} tok");
         text.AppendLine($"缓存读取：{usage.CachedTokens:N0} tok（命中 {usage.CacheHitRate:P1}）");
         text.AppendLine($"输出：{usage.CompletionTokens:N0} tok");
         text.AppendLine($"合计：{usage.TotalTokens:N0} tok");
-        text.AppendLine($"—— 本会话累计 ——");
+        text.AppendLine("—— 本会话累计 ——");
         text.AppendLine($"未缓存输入：{session.UncachedInputTokens:N0} tok");
         text.AppendLine($"缓存读取：{session.CachedTokens:N0} tok（命中 {session.CacheHitRate:P1}）");
         text.AppendLine($"输出：{session.CompletionTokens:N0} tok");
         text.AppendLine($"合计：{session.TotalTokens:N0} tok");
+        text.AppendLine("—— 上下文 ——");
+        text.AppendLine(AiContextSummary);
 
-        AiUsageDetail = text.ToString().TrimEnd();
+        message.UsageDetail = text.ToString().TrimEnd();
     }
 
-
-
-    // ── 流式执行：思考面板 / 实时答复 / 停止 ────────────────
-
-    /// <summary>本轮的思考与答复（按轮次分开，供折叠面板展示）。</summary>
-    public ObservableCollection<AiRound> AiRounds { get; } = [];
+    // ── 对话流：消息 / 流式 / 停止 ──────────────────────────
 
     [ObservableProperty]
     private bool _isAiRunning;
 
-    /// <summary>运行中显示流式纯文本，结束后切回 Markdown 渲染视图。</summary>
-    [ObservableProperty]
-    private bool _showRenderedAnswer = true;
-
-    /// <summary>流式过程中累积的答复（纯文本；结束后换成 Markdown 渲染）。</summary>
-    [ObservableProperty]
-    private string _aiLiveAnswer = string.Empty;
-
-    [ObservableProperty]
-    private string _aiThinkingHeader = "思考过程";
+    /// <summary>正在生成的那条助手消息（流式增量都写它）。</summary>
+    private ChatMessage? _activeTurn;
 
     private CancellationTokenSource? _aiCancellation;
 
@@ -818,16 +818,60 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private AiRound RoundFor(int step)
+    /// <summary>
+    /// 把本地上下文里的历史对话灌进对话流（启动、切换配置、换上下文时调用）。
+    ///
+    /// 只取最近 <see cref="MaxHistoryMessages"/> 条：历史可能有几百条，
+    /// 全渲染出来既慢又没人往下翻；更早的还能在「上下文管理」里看到。
+    /// </summary>
+    private void LoadAiHistory()
     {
-        AiRound? existing = AiRounds.FirstOrDefault(r => r.Step == step);
+        AiMessages.Clear();
 
-        if (existing is not null) return existing;
+        try
+        {
+            LlmProfile? active = _llmSettings.ActiveProfile();
 
-        var created = new AiRound(step);
-        AiRounds.Add(created);
+            if (active is not null && _contextStore.IsEnabled)
+            {
+                IReadOnlyList<ContextEntry> entries = _contextStore.ReadActiveEntries(active.Id);
 
-        return created;
+                foreach (ContextEntry entry in entries.TakeLast(MaxHistoryMessages))
+                {
+                    AiMessages.Add(entry.Role == ContextEntryRole.User
+                        ? ChatMessage.User(entry.Text, entry.AtUtc)
+                        : BuildHistoryAssistant(entry));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // 历史读不出来不影响新对话
+            _logger.Warn("读取 AI 历史对话失败", new Dictionary<string, object?>
+            {
+                ["error"] = ex.Message
+            });
+        }
+
+        NotifyChatChanged();
+    }
+
+    private const int MaxHistoryMessages = 200;
+
+    /// <summary>历史里的助手条目：只有正文（当时没存思考/步骤/用量）。</summary>
+    private static ChatMessage BuildHistoryAssistant(ContextEntry entry)
+    {
+        ChatMessage message = ChatMessage.Assistant(entry.AtUtc);
+        message.Text = entry.Text;
+        message.Document = MarkdownRenderer.Render(entry.Text);
+        return message;
+    }
+
+    /// <summary>对话流变化后刷新"是否为空"，并请求视图滚到底。</summary>
+    private void NotifyChatChanged()
+    {
+        OnPropertyChanged(nameof(HasAiMessages));
+        ChatScrollTick++;
     }
 
     /// <summary>
@@ -836,22 +880,22 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private void OnAiProgress(AiProgressEvent e)
     {
-        AiRound round = RoundFor(e.Step);
+        ChatMessage? turn = _activeTurn;
+        if (turn is null) return;
 
         switch (e.Kind)
         {
             case AiProgressKind.ReasoningDelta:
-                round.AppendReasoning(e.Text);
-                AiThinkingHeader = $"思考过程（{AiRounds.Count} 轮）";
+                turn.RoundFor(e.Step).AppendReasoning(e.Text);
                 break;
 
             case AiProgressKind.ContentDelta:
-                round.AppendAnswer(e.Text);
-                AiLiveAnswer += e.Text;
+                turn.AppendText(e.Text);
                 break;
         }
-    }
 
+        ChatScrollTick++;
+    }
     // ── 上下文（Mods/context 开关）───────────────────────────
 
     /// <summary>档位下拉的显示文本，顺序与 <see cref="ContextTier"/> 一致。</summary>
@@ -951,6 +995,7 @@ public sealed partial class MainViewModel : ObservableObject
             string id = _contextStore.StartNewContext(active.Id);
             RefreshContextInfo();
             Status = $"已开启新对话（{id}）。上一份上下文已归档保留。";
+                LoadAiHistory();
         }
         catch (Exception ex)
         {
@@ -987,6 +1032,7 @@ public sealed partial class MainViewModel : ObservableObject
             string id = _contextStore.ClearCurrent(active.Id);
             RefreshContextInfo();
             Status = $"已清空并开启新上下文（{id}）。";
+                LoadAiHistory();
         }
         catch (Exception ex)
         {
@@ -1073,61 +1119,99 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        AiSteps.Clear();
-        AiRounds.Clear();
-        AiLiveAnswer = string.Empty;
-        AiThinkingHeader = "思考过程";
+        // 一问一答进对话流：用户消息立刻上屏，助手消息先占位再流式长
+        string goal = AiGoal.Trim();
+
+        ChatMessage userMessage = ChatMessage.User(goal);
+        ChatMessage turn = ChatMessage.Assistant();
+        turn.IsStreaming = true;
+
+        AiMessages.Add(userMessage);
+        AiMessages.Add(turn);
+        _activeTurn = turn;
+        AiGoal = string.Empty;
+        NotifyChatChanged();
 
         using var cancellation = new CancellationTokenSource();
         _aiCancellation = cancellation;
         IsAiRunning = true;
-        ShowRenderedAnswer = false;
-
-        AiAnswer = string.Empty;
 
         await RunGuardedAsync("AI 任务", async () =>
         {
-            AiTaskResult result = await _agent.RunAsync(
-                new AiTaskRequest(
-                    AiGoal,
-                    MaxSteps: 8,
-                    ContextProfileId: _llmSettings.ActiveProfile()?.Id),
-                Actor.Ai("wpf-agent", Guid.NewGuid().ToString("N")[..8]),
-                cancellation.Token,
-                new Progress<AiProgressEvent>(OnAiProgress));
-
-            foreach (AiStep step in result.Steps)
+            try
             {
-                if (!string.IsNullOrWhiteSpace(step.AssistantText))
-                    AiSteps.Add($"[{step.Step}] 模型：{step.AssistantText}");
+                AiTaskResult result = await _agent.RunAsync(
+                    new AiTaskRequest(
+                        goal,
+                        MaxSteps: 8,
+                        ContextProfileId: _llmSettings.ActiveProfile()?.Id),
+                    Actor.Ai("wpf-agent", Guid.NewGuid().ToString("N")[..8]),
+                    cancellation.Token,
+                    new Progress<AiProgressEvent>(OnAiProgress));
 
-                foreach (AiToolInvocation invocation in step.Invocations)
+                foreach (AiStep step in result.Steps)
                 {
-                    string mark = invocation.Ok ? "OK  " : "FAIL";
-                    AiSteps.Add(
-                        $"[{step.Step}] {mark} {invocation.CapabilityId} ({invocation.ElapsedMs:F0}ms)" +
-                        (invocation.ErrorCode is null ? "" : $"  {invocation.ErrorCode}"));
+                    if (!string.IsNullOrWhiteSpace(step.AssistantText))
+                        turn.AppendStep($"[{step.Step}] 模型：{step.AssistantText}");
+
+                    foreach (AiToolInvocation invocation in step.Invocations)
+                    {
+                        string mark = invocation.Ok ? "OK  " : "FAIL";
+                        turn.AppendStep(
+                            $"[{step.Step}] {mark} {invocation.CapabilityId} ({invocation.ElapsedMs:F0}ms)" +
+                            (invocation.ErrorCode is null ? "" : $"  {invocation.ErrorCode}"));
+                    }
                 }
-            }
 
-            ApplyAiUsage(result.Usage);
-            IsAiRunning = false;
-            ShowRenderedAnswer = true;
-            _aiCancellation = null;
-            RefreshContextInfo();
+                ApplyAiUsage(result.Usage, turn);
 
-            if (result.Completed)
-            {
-                AiAnswer = result.Answer ?? "(模型没有给出文字答复)";
-                Status = $"AI 任务完成，工具调用 {result.ToolCallCount} 次。";
+                if (result.Completed)
+                {
+                    turn.Text = result.Answer ?? "(模型没有给出文字答复)";
+                    Status = $"AI 任务完成，工具调用 {result.ToolCallCount} 次。";
+                }
+                else
+                {
+                    turn.Text = result.Error ?? "任务未完成。";
+                    turn.IsFailed = true;
+                    Status = $"AI 任务未完成（{result.StopReason}）。";
+                }
+
+                FinishTurn(turn);
             }
-            else
+            finally
             {
-                AiAnswer = result.Error ?? "任务未完成。";
-                Status = $"AI 任务未完成（{result.StopReason}）。";
+                IsAiRunning = false;
+                _aiCancellation = null;
+                _activeTurn = null;
+                turn.IsStreaming = false;
+                RefreshContextInfo();
+                NotifyChatChanged();
             }
         });
     }
+
+    /// <summary>收尾：把正文渲染成 Markdown 文档（失败退回纯文本），然后滚到底。</summary>
+    private void FinishTurn(ChatMessage turn)
+    {
+        if (!string.IsNullOrEmpty(turn.Text))
+        {
+            try
+            {
+                turn.Document = MarkdownRenderer.Render(turn.Text);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn("Markdown 渲染失败，退回纯文本", new Dictionary<string, object?>
+                {
+                    ["error"] = ex.Message
+                });
+            }
+        }
+
+        NotifyChatChanged();
+    }
+
 
     // ── 统一异常兜底 ────────────────────────────────────────
 

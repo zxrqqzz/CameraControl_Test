@@ -155,6 +155,7 @@ public sealed class ThemeService
         resources["AccentHoverBrush"] = Frozen(new SolidColorBrush(Darken(preset.Color, 0.10)));
         resources["AccentDeepBrush"] = Frozen(new SolidColorBrush(Darken(preset.Color, 0.20)));
         resources["AccentSoftBrush"] = Frozen(new SolidColorBrush(Blend(preset.Color, Colors.White, 0.82)));
+        resources["AccentTintBrush"] = Frozen(new SolidColorBrush(Blend(preset.Color, Colors.White, 0.88)));
         resources["AccentHalftoneBrush"] = preset.Halftone;
         resources["TextOnAccentBrush"] = Frozen(new SolidColorBrush(TextColorFor(preset.Color)));
     }

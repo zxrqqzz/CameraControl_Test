@@ -44,6 +44,7 @@
     <SolidColorBrush x:Key="AccentHoverBrush" Color="#FFC400" /> <!-- 悬停 -->
     <SolidColorBrush x:Key="AccentDeepBrush"  Color="#E8BE00" /> <!-- 按下/描边 -->
     <SolidColorBrush x:Key="AccentSoftBrush"  Color="#FFF7C2" /> <!-- 淡底：悬停/聚焦 -->
+    <SolidColorBrush x:Key="AccentTintBrush"  Color="#FFFAE1" /> <!-- 更淡：对话里"我"的气泡 -->
     <!-- 骑在主色块上的文字色（亮底黑字/暗底白字，运行时按亮度重算） -->
     <SolidColorBrush x:Key="TextOnAccentBrush" Color="#0B0B0B" />
 

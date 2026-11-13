@@ -233,6 +233,30 @@ public sealed class JsonlContextStore : IContextStore
         }
     }
 
+    public IReadOnlyList<ContextEntry> ReadActiveEntries(string profileId)
+    {
+        if (!IsEnabled) return [];
+
+        try
+        {
+            lock (_sync)
+            {
+                ContextIndex index = LoadIndex(profileId);
+
+                if (index.ActiveId is null) return [];
+
+                string path = ActivePath(profileId, index.ActiveId);
+
+                return File.Exists(path) ? ReadEntries(path) : [];
+            }
+        }
+        catch (Exception)
+        {
+            // 读历史失败只影响"能不能回看"，不能连累正在进行的对话
+            return [];
+        }
+    }
+
     public bool Delete(string profileId, string contextId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(contextId);

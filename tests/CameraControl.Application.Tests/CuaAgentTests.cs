@@ -307,6 +307,8 @@ public sealed class CuaAgentTests
 
         public IReadOnlyList<ContextSnapshot> List(string profileId) => [];
 
+        public IReadOnlyList<ContextEntry> ReadActiveEntries(string profileId) => [];
+
         public bool Delete(string profileId, string contextId) => false;
 
         public string? GetActiveContextId(string profileId) => null;

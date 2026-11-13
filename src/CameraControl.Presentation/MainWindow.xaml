@@ -635,203 +635,90 @@
                     </Grid>
                 </TabItem>
 
-                <!-- ─────────── AI ─────────── -->
+                <!-- ─────────── AI：只有 in / out 两块（最小可用版，逐项加回来） ─────────── -->
                 <TabItem Header="AI">
                     <Grid Style="{StaticResource PageRoot}">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <StackPanel Grid.Row="0" Margin="0,0,0,14">
-                            <StackPanel Style="{StaticResource PageHeaderRow}">
-                                <Border Style="{StaticResource PageTitleMark}" />
-                                <TextBlock Text="AI" Style="{StaticResource PageTitle}" />
-                            </StackPanel>
-                            <TextBlock Style="{StaticResource PageSubtitle}"
-                                       Text="用自然语言驱动相机与机器人；每次会变更物理设备的操作都会先弹窗口要人确认。" />
-                        </StackPanel>
+                        <ScrollViewer x:Name="ChatScroll" Grid.Row="0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Padding="0,0,8,0">
+                            <ItemsControl ItemsSource="{Binding AiMessages}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,10" MaxWidth="700" Padding="12,8">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="HorizontalAlignment" Value="Left" />
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsUser}" Value="True">
+                                                            <Setter Property="HorizontalAlignment" Value="Right" />
+                                                            <Setter Property="Background" Value="{DynamicResource AccentTintBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
 
-                        <!-- 当前配置摘要（配置本身在「AI 设置」窗口里） -->
-                        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="14,11" Margin="0,0,0,12">
-                            <StackPanel>
-                                <TextBlock Text="{Binding AiSettingsSummary}" FontSize="12"
-                                           Foreground="{StaticResource TextSecondaryBrush}" />
-                                <TextBlock Text="{Binding AiContextSummary}" FontSize="11" Margin="0,3,0,0"
-                                           TextWrapping="Wrap"
-                                           Foreground="{StaticResource TextDimBrush}" />
-                            </StackPanel>
-                        </Border>
-
-                        <!-- 答复区：运行中显示流式纯文本，结束后换成 Markdown 渲染 -->
-                        <Border Grid.Row="2" Style="{StaticResource FlushCardBorderStyle}">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" />
-                                </Grid.RowDefinitions>
-
-                                <Border Grid.Row="0" Style="{StaticResource CardHeaderBar}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Style="{StaticResource SectionTitleMark}" />
-                                            <TextBlock Text="答复" Style="{StaticResource CardHeader}" VerticalAlignment="Center" />
-                                        </StackPanel>
-
-                                        <Border Grid.Column="1" Style="{StaticResource BadgeBorderStyle}"
-                                                Visibility="{Binding IsAiRunning, Converter={StaticResource BoolToVisibility}}">
-                                            <TextBlock Style="{StaticResource BadgeTextStyle}" Text="生成中…" />
+                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13" />
                                         </Border>
-                                    </Grid>
-                                </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
 
-                                <Grid Grid.Row="1" Margin="0,0,0,0">
-                                    <TextBlock Margin="24"
-                                               Text="问点什么试试：&#10;「列出当前所有相机，并告诉我哪一台可以采集」">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                <Style.Triggers>
-                                                    <!-- 没有答复内容时给一句提示（ShowRenderedAnswer 启动即为 true，
-                                                         不能拿它判断"有没有答复"） -->
-                                                    <DataTrigger Binding="{Binding AiAnswer}" Value="">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding IsAiRunning}" Value="True">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-
-                                    <TextBox Text="{Binding AiLiveAnswer, Mode=OneWay}"
-                                             IsReadOnly="True"
-                                             TextWrapping="Wrap"
-                                             Style="{StaticResource BareTextBox}"
-                                             FontSize="13"
-                                             Margin="16,0,10,12"
-                                             VerticalScrollBarVisibility="Auto"
-                                             Visibility="{Binding IsAiRunning, Converter={StaticResource BoolToVisibility}}" />
-
-                                    <FlowDocumentScrollViewer x:Name="AnswerViewer"
-                                                              VerticalScrollBarVisibility="Auto"
-                                                              Margin="16,0,10,12"
-                                                              IsToolBarVisible="False"
-                                                              Visibility="{Binding ShowRenderedAnswer, Converter={StaticResource BoolToVisibility}}" />
-                                </Grid>
-                            </Grid>
-                        </Border>
-
-                        <!-- 思考（按轮次折叠） -->
-                        <Expander Grid.Row="3" Margin="0,10,0,0"
-                                  Header="{Binding AiThinkingHeader}">
-                            <Border Style="{StaticResource CardBorderStyle}" Padding="8" MaxHeight="230">
-                                <ListBox ItemsSource="{Binding AiRounds}" Style="{StaticResource LogListBoxStyle}"
-                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Expander Header="{Binding Header}" Margin="0,2">
-                                                <TextBox Text="{Binding Reasoning, Mode=OneWay}"
-                                                         IsReadOnly="True"
-                                                         TextWrapping="Wrap"
-                                                         Style="{StaticResource BareTextBox}"
-                                                         FontSize="12"
-                                                         Foreground="{StaticResource TextDimBrush}"
-                                                         VerticalScrollBarVisibility="Auto"
-                                                         MaxHeight="170" />
-                                            </Expander>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                            </Border>
-                        </Expander>
-
-                        <!-- 执行步骤 -->
-                        <Expander Grid.Row="4" Margin="0,8,0,0" Header="执行步骤">
-                            <Border Style="{StaticResource CardBorderStyle}" Padding="10" MaxHeight="170">
-                                <ListBox ItemsSource="{Binding AiSteps}"
-                                         Style="{StaticResource LogListBoxStyle}"
-                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,1"
-                                                       FontSize="11" />
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                            </Border>
-                        </Expander>
-
-                        <!-- 用量 -->
-                        <Expander Grid.Row="5" Margin="0,8,0,0"
-                                  IsExpanded="{Binding AiUsageExpanded, Mode=TwoWay}">
-                            <Expander.Header>
-                                <TextBlock Text="{Binding AiUsageText}" FontSize="11"
-                                           Foreground="{StaticResource TextDimBrush}" />
-                            </Expander.Header>
-                            <Border Style="{StaticResource CardBorderStyle}" Padding="12">
-                                <TextBlock Text="{Binding AiUsageDetail}"
-                                           FontFamily="{StaticResource MonoFontFamily}"
-                                           FontSize="11"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           TextWrapping="Wrap" />
-                            </Border>
-                        </Expander>
-
-                        <!-- 输入：贴底，1~6 行自动长高，超出内部滚动 -->
-                        <Border Grid.Row="6" Style="{StaticResource FlushCardBorderStyle}" Margin="0,12,0,0">
-                            <Grid Margin="14,10,14,10">
+                        <Border Grid.Row="1" Style="{StaticResource FlushCardBorderStyle}" Margin="0,10,0,0">
+                            <Grid Margin="14,10,14,8">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <Grid Grid.Row="0">
+                                <TextBox Grid.Row="0" x:Name="GoalBox"
+                                         Text="{Binding AiGoal, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource BareTextBox}"
+                                         MinLines="1" MaxLines="6"
+                                         AcceptsReturn="True" TextWrapping="Wrap"
+                                         VerticalScrollBarVisibility="Auto"
+                                         VerticalContentAlignment="Top"
+                                         PreviewKeyDown="OnGoalKeyDown" />
+
+                                <Grid Grid.Row="1" Margin="0,6,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <TextBox Grid.Column="0"
-                                             x:Name="GoalBox"
-                                             Text="{Binding AiGoal, UpdateSourceTrigger=PropertyChanged}"
-                                             Style="{StaticResource BareTextBox}"
-                                             MinLines="1"
-                                             MaxLines="6"
-                                             AcceptsReturn="True"
-                                             TextWrapping="Wrap"
-                                             VerticalScrollBarVisibility="Auto"
-                                             VerticalContentAlignment="Top"
-                                             Margin="0,0,10,0"
-                                             PreviewKeyDown="OnGoalKeyDown" />
+                                    <TextBlock Grid.Column="0" Style="{StaticResource CaptionTextStyle}"
+                                               Text="Enter 发送 · Shift+Enter 换行" VerticalAlignment="Bottom" />
 
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
-                                        <Button Content="运行"
-                                                Width="76" Height="32"
+                                    <Button Grid.Column="1" Style="{StaticResource GhostButton}"
+                                            Padding="8,2" FontSize="11"
+                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                            Content="{Binding AiModelLine}" Margin="0,0,10,0"
+                                            VerticalAlignment="Bottom"
+                                            Command="{Binding OpenAiSettingsCommand}"
+                                            ToolTip="打开 AI 设置，换模型 / 调强度" />
+
+                                    <Grid Grid.Column="2" VerticalAlignment="Bottom">
+                                        <Button Content="发送" Width="76" Height="30"
                                                 Style="{StaticResource PrimaryButton}"
-                                                Command="{Binding RunAiCommand}" />
-                                        <Button Content="停止"
-                                                Width="68" Height="32"
-                                                Margin="6,0,0,0"
+                                                Command="{Binding RunAiCommand}"
+                                                Visibility="{Binding IsAiRunning, Converter={StaticResource InverseBoolToVisibility}}" />
+                                        <Button Content="停止" Width="76" Height="30"
+                                                Style="{StaticResource DangerButton}"
                                                 Command="{Binding StopAiCommand}"
                                                 Visibility="{Binding IsAiRunning, Converter={StaticResource BoolToVisibility}}" />
-                                    </StackPanel>
+                                    </Grid>
                                 </Grid>
-
-                                <TextBlock Grid.Row="1" Margin="0,6,0,0"
-                                           Style="{StaticResource CaptionTextStyle}"
-                                           Text="Enter 发送 · Shift+Enter 换行" />
                             </Grid>
                         </Border>
                     </Grid>

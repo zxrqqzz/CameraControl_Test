@@ -29,6 +29,9 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
+        // 自动化运行（目检/冒烟）不要弹模态错误框：脚本会被挂死
+        _headless = Array.IndexOf(e.Args, "--shot") >= 0 || Array.IndexOf(e.Args, "--smoke-test") >= 0;
+
         // 未捕获异常不要让窗口静默消失
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
@@ -104,7 +107,11 @@ public partial class App : System.Windows.Application
         string? shotDirectory = GetArgValue(e.Args, "--shot");
         if (shotDirectory is not null)
         {
-            Shutdown(UiShotHarness.Run(shotDirectory, _services));
+            Shutdown(UiShotHarness.Run(
+                shotDirectory,
+                _services,
+                aiOnly: Array.IndexOf(e.Args, "--ai-only") >= 0,
+                demoChat: Array.IndexOf(e.Args, "--demo-chat") >= 0));
             return;
         }
 
@@ -402,11 +409,14 @@ public partial class App : System.Windows.Application
     /// </summary>
     private static bool _errorDialogShown;
 
+    /// <summary>自动化运行（--shot / --smoke-test）：异常只落日志，不弹模态框，免得脚本被挂死。</summary>
+    private static bool _headless;
+
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         LogUnhandled(e.Exception);
 
-        if (!_errorDialogShown)
+        if (!_headless && !_errorDialogShown)
         {
             _errorDialogShown = true;
 
@@ -479,13 +489,23 @@ public partial class App : System.Windows.Application
                 return;
             }
 
-            _services?.GetService<IAppLogger>()?.Error("未处理的异常", new Dictionary<string, object?>
+            var fields = new Dictionary<string, object?>
             {
                 ["type"] = exception.GetType().FullName,
                 ["message"] = exception.Message,
                 ["inner"] = exception.InnerException?.Message,
                 ["stack"] = exception.StackTrace
-            });
+            };
+
+            // XAML 解析错误：把行号也记上，否则只有一句"类型不匹配"，不知道改哪一行
+            if (exception is System.Windows.Markup.XamlParseException xaml)
+            {
+                fields["xamlBaseUri"] = xaml.BaseUri;
+                fields["xamlLine"] = xaml.LineNumber;
+                fields["xamlColumn"] = xaml.LinePosition;
+            }
+
+            _services?.GetService<IAppLogger>()?.Error("未处理的异常", fields);
         }
         catch
         {

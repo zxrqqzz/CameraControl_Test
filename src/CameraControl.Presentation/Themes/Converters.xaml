@@ -17,6 +17,8 @@
     <!-- ComboBox 收起状态显示 DisplayMemberPath 指向的属性（自定义模板必须自己补） -->
     <svc:DisplayMemberConverter x:Key="DisplayMember" />
 
+    <svc:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
+
     <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
 </ResourceDictionary>

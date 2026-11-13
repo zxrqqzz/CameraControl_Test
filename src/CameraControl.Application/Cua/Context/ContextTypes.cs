@@ -134,6 +134,15 @@ public interface IContextStore
     /// <summary>列出该配置下的所有上下文（含归档）。</summary>
     IReadOnlyList<ContextSnapshot> List(string profileId);
 
+    /// <summary>
+    /// 读回**当前上下文**的全部条目（按写入顺序）。
+    ///
+    /// 用途：AI 页的对话区要把历史对话渲染出来（关掉程序再打开还能看到上下文里发生过什么）。
+    /// 返回的是已写入的原始文本，不含思考/步骤/用量——那些只存在于本次运行的界面里。
+    /// 功能关闭、没有当前上下文、文件损坏时一律返回空，不抛异常。
+    /// </summary>
+    IReadOnlyList<ContextEntry> ReadActiveEntries(string profileId);
+
     /// <summary>删除指定上下文。</summary>
     bool Delete(string profileId, string contextId);
 
