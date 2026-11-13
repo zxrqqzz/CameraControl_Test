@@ -341,7 +341,6 @@ public sealed class CuaAgent : IAiAgent
         return text[..MaxToolResultChars] + "…(已截断)";
     }
 
-    /// <summary>把这一轮的"用户输入 + 模型最终输出"写进上下文。</summary>
     /// <summary>
     /// 发一轮请求：支持流式的提供方走 SSE（思考与正文实时回调），
     /// 否则退回非流式（一次性返回，界面只在结束时刷新）。
@@ -388,6 +387,7 @@ public sealed class CuaAgent : IAiAgent
             "流式响应结束但没有收到完整内容。");
     }
 
+    /// <summary>把这一轮的"用户输入 + 模型最终输出"写进上下文。</summary>
     private void RecordTurn(AiTaskRequest request, string? answer)
     {
         if (string.IsNullOrEmpty(request.ContextProfileId) || _context is null) return;

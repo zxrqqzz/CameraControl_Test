@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -38,7 +39,9 @@ public sealed class ContextStoreOptions
 /// </summary>
 public sealed class JsonlContextStore : IContextStore
 {
-    private static readonly JsonSerializerOptions Json = new()
+    // 叫 JsonOptions 而不是 Json：后者会遮蔽 System.Text.Json 命名空间，
+    // 逼得同文件里只能写全限定名。
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -160,7 +163,7 @@ public sealed class JsonlContextStore : IContextStore
             string contextId = index.ActiveId!;
             string path = ActivePath(profileId, contextId);
 
-            ContextSnapshot snapshot = FindOrCreateSnapshot(profileId, index, contextId);
+            ContextSnapshot snapshot = FindOrCreateSnapshot(index, contextId);
 
             string userPlain = Truncate(userText);
             string assistantPlain = Truncate(assistantText);
@@ -250,9 +253,10 @@ public sealed class JsonlContextStore : IContextStore
                 return File.Exists(path) ? ReadEntries(path) : [];
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // 读历史失败只影响"能不能回看"，不能连累正在进行的对话
+            Debug.WriteLine($"读取活动上下文失败（{profileId}）：{ex.Message}");
             return [];
         }
     }
@@ -374,7 +378,7 @@ public sealed class JsonlContextStore : IContextStore
         {
             if (File.Exists(path))
             {
-                ContextIndex? loaded = JsonSerializer.Deserialize<ContextIndex>(File.ReadAllText(path, Utf8NoBom), Json);
+                ContextIndex? loaded = JsonSerializer.Deserialize<ContextIndex>(File.ReadAllText(path, Utf8NoBom), JsonOptions);
 
                 if (loaded is not null)
                 {
@@ -383,9 +387,10 @@ public sealed class JsonlContextStore : IContextStore
                 }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // 索引损坏就当没有，下面会重建
+            Debug.WriteLine($"读取上下文索引失败（{path}）：{ex.Message}");
         }
 
         return Rebuild(profileId);
@@ -434,9 +439,10 @@ public sealed class JsonlContextStore : IContextStore
                 }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // 重建失败也要能继续跑
+            Debug.WriteLine($"从磁盘重建上下文索引失败（{profileId}）：{ex.Message}");
         }
 
         // 活动上下文：存在且未归档的最新一份
@@ -456,7 +462,7 @@ public sealed class JsonlContextStore : IContextStore
         string path = IndexPath(profileId);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
-        string json = JsonSerializer.Serialize(index, Json);
+        string json = JsonSerializer.Serialize(index, JsonOptions);
 
         // 索引本身不是注入前缀的一部分，允许临时文件 + 替换
         string temp = path + ".tmp";
@@ -485,9 +491,10 @@ public sealed class JsonlContextStore : IContextStore
                     parsed.Text,
                     parsed.At));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // 单行损坏跳过，不影响其余内容
+                Debug.WriteLine($"跳过损坏的上下文行（{path}）：{ex.Message}");
             }
         }
 
@@ -509,7 +516,7 @@ public sealed class JsonlContextStore : IContextStore
         return snapshot?.EstimatedTokens ?? 0;
     }
 
-    private static ContextSnapshot FindOrCreateSnapshot(string profileId, ContextIndex index, string contextId)
+    private static ContextSnapshot FindOrCreateSnapshot(ContextIndex index, string contextId)
     {
         ContextSnapshot? existing = index.Contexts.FirstOrDefault(c => c.Id == contextId);
 
@@ -544,9 +551,10 @@ public sealed class JsonlContextStore : IContextStore
         {
             if (File.Exists(path)) File.Delete(path);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // 删不掉不影响主流程；下次操作还会尝试
+            Debug.WriteLine($"删除上下文文件失败（{path}）：{ex.Message}");
         }
     }
 

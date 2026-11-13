@@ -190,6 +190,8 @@ public sealed class CapturePreviewService : ICapturePreviewService, IAsyncDispos
 
         lock (_sync) _loops[key] = loop;
 
+        // 预览循环的生命周期由 loop.Cancellation 控制；不能挂命令请求令牌，
+        // 否则 startContinuous 返回、请求取消后长驻预览会被连带取消。
         loop.Worker = Task.Run(async () =>
         {
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(intervalMs));
@@ -222,7 +224,7 @@ public sealed class CapturePreviewService : ICapturePreviewService, IAsyncDispos
             {
                 // 正常停止
             }
-        }, cancellationToken);
+        }, loop.Cancellation.Token);
     }
 
     public Task StopAsync(CameraId id)

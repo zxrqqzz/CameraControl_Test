@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CameraControl.Application.Capture;
 using CameraControl.Application.Commands;
 using CameraControl.Domain.Cameras;
@@ -159,12 +160,10 @@ public sealed class CaptureSingleCapability : ICapabilityHandler<CaptureSingleCo
     {
         var id = new CameraId(command.CameraId);
 
-        ICameraSession session = _registry.Find(id)
-            ?? throw new CameraOperationException(
-                CaptureErrorCodes.CameraNotOpen,
-                $"相机 {command.CameraId} 未打开，请先调用 camera.open。");
+        ICameraSession session = CaptureSessionGuard.Require(
+            _registry, id, command.CameraId, includeOpenHint: true);
 
-        var options = new CaptureOptions(command.ExposureUs, command.Gain is null ? null : (int?)command.Gain);
+        var options = new CaptureOptions(command.ExposureUs, (int?)command.Gain);
 
         try
         {
@@ -225,7 +224,7 @@ public sealed class CaptureFrameCapability : ICapabilityHandler<CaptureGetFrameC
         // 刚 startContinuous 时第一帧还没到，直接返回 null 会让调用方误判为"没在预览"。
         // 这里做一次有界等待：默认 1 秒，覆盖绝大多数相机的首帧延迟。
         Frame? frame = _preview.Latest(id);
-        var waited = System.Diagnostics.Stopwatch.StartNew();
+        var waited = Stopwatch.StartNew();
 
         if (frame is null)
         {
@@ -297,10 +296,8 @@ public sealed class CaptureArmCapability : ICapabilityHandler<CaptureArmCommand>
     {
         var id = new CameraId(command.CameraId);
 
-        ICameraSession session = _registry.Find(id)
-            ?? throw new CameraOperationException(
-                CaptureErrorCodes.CameraNotOpen,
-                $"相机 {command.CameraId} 未打开，请先调用 camera.open。");
+        ICameraSession session = CaptureSessionGuard.Require(
+            _registry, id, command.CameraId, includeOpenHint: true);
 
         TriggerSpec trigger = string.Equals(command.TriggerKind, "hardware", StringComparison.OrdinalIgnoreCase)
             ? TriggerSpec.Hardware(command.CameraId)
@@ -340,10 +337,8 @@ public sealed class CaptureDisarmCapability : ICapabilityHandler<CaptureDisarmCo
     {
         var id = new CameraId(command.CameraId);
 
-        ICameraSession session = _registry.Find(id)
-            ?? throw new CameraOperationException(
-                CaptureErrorCodes.CameraNotOpen,
-                $"相机 {command.CameraId} 未打开。");
+        ICameraSession session = CaptureSessionGuard.Require(
+            _registry, id, command.CameraId, includeOpenHint: false);
 
         await session.DisarmAsync(cancellationToken).ConfigureAwait(false);
 
@@ -379,10 +374,8 @@ public sealed class CaptureTriggerCapability : ICapabilityHandler<CaptureTrigger
     {
         var id = new CameraId(command.CameraId);
 
-        ICameraSession session = _registry.Find(id)
-            ?? throw new CameraOperationException(
-                CaptureErrorCodes.CameraNotOpen,
-                $"相机 {command.CameraId} 未打开。");
+        ICameraSession session = CaptureSessionGuard.Require(
+            _registry, id, command.CameraId, includeOpenHint: false);
 
         await session.TriggerSoftwareAsync(cancellationToken).ConfigureAwait(false);
 
@@ -543,5 +536,30 @@ public sealed class CaptureStopContinuousCapability : ICapabilityHandler<Capture
         await _preview.StopAsync(new CameraId(command.CameraId)).ConfigureAwait(false);
 
         return new { cameraId = command.CameraId, previewing = false };
+    }
+}
+
+// ── 内部帮助 ────────────────────────────────────────────
+
+/// <summary>已打开相机会话的统一校验（供本文件的采集能力复用）。</summary>
+internal static class CaptureSessionGuard
+{
+    /// <summary>
+    /// 取已打开的会话；未打开时抛 <see cref="CameraOperationException"/>。
+    /// <paramref name="includeOpenHint"/> 为 true 时附带 camera.open 提示，
+    /// 对应改造前各调用点原有的两种消息文本。
+    /// </summary>
+    internal static ICameraSession Require(
+        ICameraSessionRegistry registry,
+        CameraId id,
+        string cameraId,
+        bool includeOpenHint)
+    {
+        string message = includeOpenHint
+            ? $"相机 {cameraId} 未打开，请先调用 camera.open。"
+            : $"相机 {cameraId} 未打开。";
+
+        return registry.Find(id)
+            ?? throw new CameraOperationException(CaptureErrorCodes.CameraNotOpen, message);
     }
 }

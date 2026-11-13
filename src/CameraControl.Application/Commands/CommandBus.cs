@@ -29,6 +29,8 @@ public sealed class CommandBus : ICommandBus
     // 用 IEnumerable 注入而不是可选单个实例：
     // MS.DI 对未注册的 IEnumerable 会解析成空集合（而不是抛异常），
     // 这样"没装确认门"就天然等于"保持失败关闭"。
+    // 注意：下面用 FirstOrDefault() 只取第一个确认门——同一容器注册多个时，
+    // 其余会被忽略。确认是最后一道人工关卡，多头确认没有意义，也避免重复弹窗。
     private readonly IConfirmationGate? _confirmationGate;
 
     public CommandBus(
@@ -77,7 +79,16 @@ public sealed class CommandBus : ICommandBus
                 Retryable: false,
                 Hint: "调用 cua.getCapabilities 查看可用能力清单。");
 
-            Record(capabilityId, RiskLevel.Destructive, actor, ok: false, unknown.Code, stopwatch.Elapsed);
+            // 未知能力没有真实风险等级；这里只记录"未注册"这一事实，
+            // 误标成 Destructive 会让审计日志失真。
+            Record(
+                capabilityId,
+                RiskLevel.ReadOnly,
+                actor,
+                ok: false,
+                unknown.Code,
+                stopwatch.Elapsed,
+                summary: "未注册能力（未执行）");
             return CommandResult.Failure(capabilityId, unknown, stopwatch.Elapsed);
         }
 
@@ -179,7 +190,8 @@ public sealed class CommandBus : ICommandBus
         Actor actor,
         bool ok,
         string? errorCode,
-        TimeSpan elapsed)
+        TimeSpan elapsed,
+        string? summary = null)
     {
         _auditLog.Write(new AuditEntry(
             At: _clock.UtcNow,
@@ -188,7 +200,8 @@ public sealed class CommandBus : ICommandBus
             Risk: risk,
             Ok: ok,
             ErrorCode: errorCode,
-            Elapsed: elapsed));
+            Elapsed: elapsed,
+            Summary: summary));
 
         // 指标：按能力聚合，便于看"哪个能力慢/失败多"
         _metrics.Increment($"command.{capabilityId}.total");

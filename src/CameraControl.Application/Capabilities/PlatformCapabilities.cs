@@ -457,13 +457,27 @@ public sealed class SystemExportDiagnosticsCapability : ICapabilityHandler<Syste
         CommandContext context,
         CancellationToken cancellationToken)
     {
-        string dataDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "CameraControl");
+        // data 目录按组合根的发布版语义（可执行文件旁）解析；
+        // 不引用 Composition 是为了不穿透分层，这里也不新增构造注入。
+        string dataDirectory = Path.Combine(AppContext.BaseDirectory, "data");
+        string diagnosticsDirectory = Path.Combine(dataDirectory, "diagnostics");
 
-        string target = string.IsNullOrWhiteSpace(command.OutputPath)
-            ? Path.Combine(dataDirectory, "diagnostics", $"diag-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.zip")
-            : command.OutputPath;
+        string target;
+        try
+        {
+            target = string.IsNullOrWhiteSpace(command.OutputPath)
+                ? Path.Combine(diagnosticsDirectory, $"diag-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.zip")
+                : Path.GetFullPath(command.OutputPath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            // 非法路径按参数错误返回，不让底层异常穿透。
+            return Task.FromResult<object?>(InvalidOutputPath(diagnosticsDirectory));
+        }
+
+        // AI 可指定 outputPath，但只允许落在诊断目录内：防止诊断包被写到任意路径。
+        if (!IsWithin(diagnosticsDirectory, target))
+            return Task.FromResult<object?>(InvalidOutputPath(diagnosticsDirectory));
 
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
 
@@ -490,5 +504,25 @@ public sealed class SystemExportDiagnosticsCapability : ICapabilityHandler<Syste
         }
 
         return Task.FromResult<object?>(new { exported = true, path = target });
+    }
+
+    /// <summary>outputPath 越界或非法时的失败结果（不抛异常，便于 AI 自我纠正）。</summary>
+    private static object InvalidOutputPath(string diagnosticsDirectory) => new
+    {
+        exported = false,
+        code = "INVALID_PARAMETER",
+        error = "outputPath 必须位于诊断目录内。",
+        hint = $"省略 outputPath 将写到 {diagnosticsDirectory}。"
+    };
+
+    /// <summary>判断目标路径是否落在指定目录内（含子目录）。</summary>
+    private static bool IsWithin(string root, string path)
+    {
+        string relative = Path.GetRelativePath(Path.GetFullPath(root), Path.GetFullPath(path));
+
+        return relative != "."
+            && relative != ".."
+            && !Path.IsPathRooted(relative)
+            && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
     }
 }

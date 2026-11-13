@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CameraControl.Application.Capture;
 using CameraControl.Domain.Cameras;
 using CameraControl.Domain.Capture;
@@ -256,9 +257,10 @@ public sealed class HikCameraSession : ICameraSession
         {
             _device.StreamGrabber.StopGrabbing();
         }
-        catch
+        catch (Exception ex)
         {
             // 断开时停止取流失败可忽略
+            Debug.WriteLine($"停止取流失败（{Id.Value}）：{ex.Message}");
         }
     }
 
@@ -287,9 +289,10 @@ public sealed class HikCameraSession : ICameraSession
                 _pending?.TrySetResult(frame);
             }
         }
-        catch
+        catch (Exception ex)
         {
             // 回调里的异常不能抛回 SDK
+            Debug.WriteLine($"帧回调处理失败：{ex.Message}");
         }
         finally
         {
@@ -347,7 +350,14 @@ public sealed class HikCameraSession : ICameraSession
                 }
                 finally
                 {
-                    try { converted.Dispose(); } catch { }
+                    try
+                    {
+                        converted.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"释放转换后的图像失败：{ex.Message}");
+                    }
                 }
         }
     }
@@ -378,17 +388,49 @@ public sealed class HikCameraSession : ICameraSession
 
         if (_callbackRegistered)
         {
-            try { _device.StreamGrabber.FrameGrabedEvent -= OnFrameGrabbed; } catch { }
+            try
+            {
+                _device.StreamGrabber.FrameGrabedEvent -= OnFrameGrabbed;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"注销帧回调失败：{ex.Message}");
+            }
+
             _callbackRegistered = false;
         }
 
-        try { _device.Close(); } catch { }
-        try { _device.Dispose(); } catch { }
+        // 释放顺序不变：先关流（StopGrabbingCore，已在上面），再 Close，最后 Dispose。
+        try
+        {
+            _device.Close();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"关闭相机失败：{ex.Message}");
+        }
+
+        try
+        {
+            _device.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"释放相机句柄失败：{ex.Message}");
+        }
 
         if (!_disposeNotified)
         {
             _disposeNotified = true;
-            try { _onDispose(); } catch { }
+
+            try
+            {
+                _onDispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"相机会话释放回调失败：{ex.Message}");
+            }
         }
 
         return ValueTask.CompletedTask;

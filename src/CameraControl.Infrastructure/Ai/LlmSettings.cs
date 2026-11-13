@@ -234,6 +234,7 @@ public sealed class LlmSettingsStore
     private readonly Domain.Ports.ISettingsStore _store;
     private readonly ISecretProtector _protector;
 
+    /// <summary>构造存储；<paramref name="protector"/> 负责 API Key 的加解密。</summary>
     public LlmSettingsStore(Domain.Ports.ISettingsStore store, ISecretProtector protector)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -245,6 +246,10 @@ public sealed class LlmSettingsStore
 
     // ── 读取 ────────────────────────────────────────────────
 
+    /// <summary>
+    /// 读取配置。文件不存在或损坏时返回空配置，由调用方回退默认值。
+    /// 若发现有旧版扁平字段，会顺带做一次性迁移——**此时可能落盘**（失败只忽略，不抛）。
+    /// </summary>
     public LlmSettings Load()
     {
         LlmSettings settings = _store.TryLoad<LlmSettings>(Key, out LlmSettings? loaded) && loaded is not null
@@ -254,8 +259,13 @@ public sealed class LlmSettingsStore
         return MigrateLegacy(settings);
     }
 
+    /// <summary>
+    /// 列出全部配置。只读、不落盘：每次调用都重新读取存储，
+    /// 拿到的是本次反序列化出来的对象，改动它不会回写。
+    /// </summary>
     public IReadOnlyList<LlmProfile> ListProfiles() => Load().Profiles;
 
+    /// <summary>按 id 查找配置；id 为空或未找到返回 null。只读，不落盘。</summary>
     public LlmProfile? FindProfile(string? id) =>
         string.IsNullOrWhiteSpace(id) ? null : Load().Profiles.FirstOrDefault(p => p.Id == id);
 

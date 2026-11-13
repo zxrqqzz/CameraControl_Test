@@ -1,7 +1,6 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -188,15 +187,14 @@ internal static class UiShotHarness
             Pump();
         }
 
-        // 调色卡本体（Popup 是独立窗口，只能单独渲染它的 Child）
-        if (window.FindName("PaletteToggle") is ToggleButton paletteToggle &&
-            window.FindName("PalettePopup") is Popup palettePopup &&
-            palettePopup.Child is FrameworkElement paletteCard)
+        // 调色卡本体（Popup 是独立窗口，只能单独渲染它的内容面板）
+        if (window.FindName("AppHeader") is AppHeaderView appHeader &&
+            appHeader.PaletteCard is FrameworkElement paletteCard)
         {
-            paletteToggle.IsChecked = true;
+            appHeader.SetPaletteOpen(true);
             Pump();
             Save(paletteCard, Path.Combine(outputDirectory, "10-调色卡.png"));
-            paletteToggle.IsChecked = false;
+            appHeader.SetPaletteOpen(false);
             Pump();
         }
 

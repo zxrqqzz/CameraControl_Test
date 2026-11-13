@@ -51,37 +51,37 @@ public sealed class DefaultCommandBinder : ICommandBinder
 
                 // ── 相机与采集 ──────────────────────────────
             CameraOpenCommand.Id => new CameraOpenCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。")),
+                JsonArgs.RequireString(arguments, "cameraId")),
             CameraCloseCommand.Id => new CameraCloseCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。")),
+                JsonArgs.RequireString(arguments, "cameraId")),
             CameraListOpenCommand.Id => new CameraListOpenCommand(),
             CameraGetStatusCommand.Id => new CameraGetStatusCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。")),
+                JsonArgs.RequireString(arguments, "cameraId")),
             CaptureSingleCommand.Id => new CaptureSingleCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。"),
+                JsonArgs.RequireString(arguments, "cameraId"),
                 JsonArgs.GetInt(arguments, "exposureUs"),
                 JsonArgs.GetInt(arguments, "gain"),
                 JsonArgs.GetBool(arguments, "includeImage") ?? false),
             CaptureArmCommand.Id => new CaptureArmCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。"),
+                JsonArgs.RequireString(arguments, "cameraId"),
                 JsonArgs.GetString(arguments, "triggerKind") ?? "software",
                 JsonArgs.GetInt(arguments, "softwareDelayUs") ?? 0),
             CaptureDisarmCommand.Id => new CaptureDisarmCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。")),
+                JsonArgs.RequireString(arguments, "cameraId")),
             CaptureTriggerCommand.Id => new CaptureTriggerCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。")),
+                JsonArgs.RequireString(arguments, "cameraId")),
             CaptureWaitSettledCommand.Id => new CaptureWaitSettledCommand(
                 JsonArgs.GetInt(arguments, "timeoutMs") ?? 2000,
                 JsonArgs.GetInt(arguments, "fixedDelayMs") ?? 0),
             CaptureGetStatsCommand.Id => new CaptureGetStatsCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。")),
+                JsonArgs.RequireString(arguments, "cameraId")),
             CaptureStartContinuousCommand.Id => new CaptureStartContinuousCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。"),
+                JsonArgs.RequireString(arguments, "cameraId"),
                 JsonArgs.GetInt(arguments, "fps") ?? 10),
             CaptureStopContinuousCommand.Id => new CaptureStopContinuousCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。")),
+                JsonArgs.RequireString(arguments, "cameraId")),
             CaptureGetFrameCommand.Id => new CaptureGetFrameCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。"),
+                JsonArgs.RequireString(arguments, "cameraId"),
                 JsonArgs.GetBool(arguments, "includeImage") ?? true,
                 JsonArgs.GetInt(arguments, "timeoutMs") ?? 1000),
 
@@ -149,35 +149,35 @@ public sealed class DefaultCommandBinder : ICommandBinder
 
             // ── 标定会话 ────────────────────────────────
             CalibrationDetectCornersCommand.Id => new CalibrationDetectCornersCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。"),
+                JsonArgs.RequireString(arguments, "cameraId"),
                 JsonArgs.GetBool(arguments, "addToSession") ?? true),
             CalibrationGetStateCommand.Id => new CalibrationGetStateCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。")),
+                JsonArgs.RequireString(arguments, "cameraId")),
             CalibrationConfigureCommand.Id => new CalibrationConfigureCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。"),
+                JsonArgs.RequireString(arguments, "cameraId"),
                 JsonArgs.GetInt(arguments, "cols") ?? 12,
                 JsonArgs.GetInt(arguments, "rows") ?? 13,
                 JsonArgs.GetDouble(arguments, "squareMm") ?? 30),
             CalibrationAddPointCommand.Id => BindCalibrationAddPoint(arguments),
             CalibrationRemovePointCommand.Id => new CalibrationRemovePointCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。"),
+                JsonArgs.RequireString(arguments, "cameraId"),
                 JsonArgs.GetInt(arguments, "index") ?? throw new JsonException("index 必填。")),
             CalibrationResetCommand.Id => new CalibrationResetCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。")),
+                JsonArgs.RequireString(arguments, "cameraId")),
             CalibrationApplyCommand.Id => new CalibrationApplyCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。"),
+                JsonArgs.RequireString(arguments, "cameraId"),
                 JsonArgs.GetInt(arguments, "imageWidth") ?? throw new JsonException("imageWidth 必填。"),
                 JsonArgs.GetInt(arguments, "imageHeight") ?? throw new JsonException("imageHeight 必填。"),
                 JsonArgs.GetString(arguments, "note")),
             CalibrationExportCommand.Id => new CalibrationExportCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。")),
+                JsonArgs.RequireString(arguments, "cameraId")),
             CalibrationSolveHandEyeCommand.Id => BindCalibrationSolveHandEye(arguments),
 
             // ── 设备 / 系统 / CUA 补充 ──────────────────
             DeviceGetCommand.Id => new DeviceGetCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。")),
+                JsonArgs.RequireString(arguments, "cameraId")),
             DeviceRenameCommand.Id => new DeviceRenameCommand(
-                JsonArgs.GetString(arguments, "cameraId") ?? throw new JsonException("cameraId 必填。"),
+                JsonArgs.RequireString(arguments, "cameraId"),
                 JsonArgs.GetString(arguments, "alias")),
             SystemGetEnvironmentCommand.Id => new SystemGetEnvironmentCommand(),
             SystemGetSettingsCommand.Id => new SystemGetSettingsCommand(),
@@ -211,8 +211,7 @@ public sealed class DefaultCommandBinder : ICommandBinder
     /// <summary>绑定 calibration.addPoint：把 JSON 的点数组转成 Point2 列表。</summary>
     private static ICommand BindCalibrationAddPoint(JsonElement arguments)
     {
-        string cameraId = JsonArgs.GetString(arguments, "cameraId")
-            ?? throw new JsonException("cameraId 必填。");
+        string cameraId = JsonArgs.RequireString(arguments, "cameraId");
 
         if (!arguments.TryGetProperty("imagePoints", out JsonElement array) || array.ValueKind != JsonValueKind.Array)
             throw new JsonException("imagePoints 必须是点数组。");

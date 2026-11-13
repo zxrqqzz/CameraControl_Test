@@ -49,6 +49,19 @@ public static class ServiceRegistration
     private static string? _resolvedDataDirectory;
 
     /// <summary>
+    /// 解析 <c>Mods</c> 目录：优先仓库根（源码运行），否则可执行文件旁（发布版）。
+    /// 开关文件是 <c>Mods/context/mod.json</c>；整个目录缺失即视为关闭该功能。
+    /// </summary>
+    public static string ResolveModsDirectory()
+    {
+        string? repositoryRoot = FindRepositoryRoot();
+
+        return repositoryRoot is not null
+            ? Path.Combine(repositoryRoot, "Mods")
+            : Path.Combine(AppContext.BaseDirectory, "Mods");
+    }
+
+    /// <summary>
     /// 解析数据目录（公开出来便于宿主显示"日志在哪"）。
     ///
     /// **默认放在程序旁边**（可移植，不写 C 盘用户目录）。
@@ -63,19 +76,7 @@ public static class ServiceRegistration
     ///
     /// 每个候选都用**真实写一个随机文件**来验证，不只看权限位。
     /// </summary>
-    /// <summary>
-    /// 解析 <c>Mods</c> 目录：优先仓库根（源码运行），否则可执行文件旁（发布版）。
-    /// 开关文件是 <c>Mods/context/mod.json</c>；整个目录缺失即视为关闭该功能。
-    /// </summary>
-    public static string ResolveModsDirectory()
-    {
-        string? repositoryRoot = FindRepositoryRoot();
-
-        return repositoryRoot is not null
-            ? Path.Combine(repositoryRoot, "Mods")
-            : Path.Combine(AppContext.BaseDirectory, "Mods");
-    }
-
+    /// <param name="dataDirectory">显式指定的目录；非空时直接返回，不做探测。</param>
     public static string ResolveDataDirectory(string? dataDirectory = null)
     {
         if (!string.IsNullOrWhiteSpace(dataDirectory)) return dataDirectory;

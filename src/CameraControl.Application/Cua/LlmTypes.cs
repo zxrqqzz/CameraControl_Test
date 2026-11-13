@@ -238,6 +238,14 @@ public static class JsonArgs
         GetDouble(root, property)
         ?? throw new JsonException($"缺少必填数值参数 {property}。");
 
+    /// <summary>
+    /// 必填字符串；缺失时抛 <see cref="JsonException"/>。
+    /// 空串按原样返回（与 <see cref="GetString"/> 的原有行为一致，不视为缺失）。
+    /// </summary>
+    public static string RequireString(JsonElement root, string property) =>
+        GetString(root, property)
+        ?? throw new JsonException($"{property} 必填。");
+
     public static IReadOnlyList<string> GetStringArray(JsonElement root, string property)
     {
         if (root.ValueKind != JsonValueKind.Object

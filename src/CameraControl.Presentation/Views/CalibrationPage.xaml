@@ -1,0 +1,122 @@
+<UserControl x:Class="CameraControl.Presentation.Views.CalibrationPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer Style="{StaticResource PageScroll}">
+        <StackPanel>
+
+            <StackPanel Margin="0,0,0,14">
+                <StackPanel Style="{StaticResource PageHeaderRow}">
+                <Border Style="{StaticResource PageTitleMark}" />
+                <TextBlock Text="标定" Style="{StaticResource PageTitle}" />
+            </StackPanel>
+                <TextBlock Style="{StaticResource PageSubtitle}"
+                           Text="拍不少于 10 个视角 → 内置角点检测 → 张氏标定求解并保存。" />
+            </StackPanel>
+
+            <!-- ① 棋盘参数 -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,14">
+                <StackPanel>
+                    <StackPanel Style="{StaticResource SectionTitleRow}">
+                    <Border Style="{StaticResource SectionTitleMark}" />
+                    <TextBlock Text="相机与棋盘" Style="{StaticResource CardHeader}" />
+                </StackPanel>
+
+                    <StackPanel Style="{StaticResource FieldRow}">
+                        <TextBlock Text="相机" Style="{StaticResource FieldLabelTextStyle}" Width="76" />
+                        <ComboBox ItemsSource="{Binding Calibration.Cameras}"
+                                  SelectedItem="{Binding Calibration.SelectedCamera}"
+                                  DisplayMemberPath="DisplayName"
+                                  Width="320" />
+                    </StackPanel>
+
+                    <StackPanel Style="{StaticResource FieldRow}">
+                        <TextBlock Text="内角点数" Style="{StaticResource FieldLabelTextStyle}" Width="76" />
+                        <TextBox Text="{Binding Calibration.GridCols, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="64" />
+                        <TextBlock Text="列 ×" Style="{StaticResource FieldLabelTextStyle}" Margin="8,0" />
+                        <TextBox Text="{Binding Calibration.GridRows, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="64" />
+                        <TextBlock Text="行" Style="{StaticResource FieldLabelTextStyle}" Margin="8,0,0,0" />
+                    </StackPanel>
+
+                    <StackPanel Style="{StaticResource FieldRow}">
+                        <TextBlock Text="方格边长" Style="{StaticResource FieldLabelTextStyle}" Width="76" />
+                        <TextBox Text="{Binding Calibration.SquareMm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="80" />
+                        <TextBlock Text="mm" Style="{StaticResource FieldLabelTextStyle}" Margin="8,0,0,0" />
+                    </StackPanel>
+
+                    <Button Content="应用棋盘参数"
+                            Style="{StaticResource SecondaryButton}"
+                            HorizontalAlignment="Left"
+                            Margin="0,6,0,0"
+                            Command="{Binding Calibration.ConfigureCommand}" />
+                </StackPanel>
+            </Border>
+
+            <!-- ② 采集动作 -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,14">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="拍摄并检测" Style="{StaticResource PrimaryButton}"
+                                Margin="0,0,8,0"
+                                Command="{Binding Calibration.CaptureCommand}" />
+                        <Button Content="求解并保存" Style="{StaticResource SecondaryButton}"
+                                Margin="0,0,8,0"
+                                Command="{Binding Calibration.SolveCommand}" />
+                        <Button Content="清空视角" Style="{StaticResource GhostButton}"
+                                Command="{Binding Calibration.ResetCommand}" />
+                    </StackPanel>
+
+                    <Border Grid.Column="1" Style="{StaticResource BadgeBorderStyle}">
+                        <TextBlock Style="{StaticResource BadgeTextStyle}"
+                                   Text="{Binding Calibration.ViewCountText, Mode=OneWay}" />
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- ③ 状态与结果 -->
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,14">
+                <StackPanel>
+                    <StackPanel Style="{StaticResource SectionTitleRow}" Margin="0,0,0,8">
+                    <Border Style="{StaticResource SectionTitleMark}" />
+                    <TextBlock Text="状态" Style="{StaticResource CardHeader}" />
+                </StackPanel>
+                    <TextBlock Text="{Binding Calibration.Status}" TextWrapping="Wrap"
+                               Style="{StaticResource BodyTextStyle}" />
+
+                    <!-- 结果为空时不摆一个空的标题：标定还没跑过就不该有这一块 -->
+                    <StackPanel Visibility="{Binding Calibration.Result, Converter={StaticResource EmptyToCollapsed}}">
+                        <Separator Style="{StaticResource CardDivider}" />
+                        <TextBlock Text="求解结果" Style="{StaticResource CardHeader}" Margin="0,0,0,6" />
+                        <TextBlock Text="{Binding Calibration.Result}"
+                                   FontFamily="{StaticResource MonoFontFamily}"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ④ 说明 -->
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel>
+                    <StackPanel Style="{StaticResource SectionTitleRow}" Margin="0,0,0,8">
+                    <Border Style="{StaticResource SectionTitleMark}" />
+                    <TextBlock Text="怎么用" Style="{StaticResource CardHeader}" />
+                </StackPanel>
+                    <TextBlock Style="{StaticResource CaptionTextStyle}"
+                               Text="1）先到「设备」页刷新并打开相机；2）确认棋盘内角点行列与方格边长；3）从不同角度、不同距离拍 10 张以上（深度要拉开）；4）求解并保存。" />
+                    <TextBlock Style="{StaticResource HintText}" Margin="0,10,0,0"
+                               Text="内置角点检测对光照和清晰度敏感。若提示点数不符或覆盖率低，请改善光照或换更清晰的棋盘——不要硬用低覆盖率的结果标定。" />
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

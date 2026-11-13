@@ -120,6 +120,9 @@ public sealed class JsonSettingsStore : ISettingsStore
                     {
                         lastError = ex;
 
+                        // 这是同步存储 API（ISettingsStore.Save 为同步方法），且整段写入处在 lock (_sync) 内，
+                        // 没有可 await 的位置——改成 Task.Delay 就得把接口与调用链一起异步化。
+                        // 这里只让出 40ms 做重试退避，属可接受的同步等待，故保留 Thread.Sleep。
                         if (attempt == 1) Thread.Sleep(40);
                     }
                 }
