@@ -1,16 +1,15 @@
 <!--
     Tokens.xaml —— 设计令牌（唯一改色的地方）
     ══════════════════════════════════════════════════════════════════════════
-    风格：「极简卡片」——纯白底、黑字、发丝线分层，没有彩色装饰、没有圆角。
-
-      · 层次靠 1px 线，不靠色块：窗口/卡片/侧栏同为白，只有 CardBorderBrush /
-        DividerBrush 两道极浅的线在分层。卡片是一个白底 + 1px 线的矩形。
-      · 文字一律黑/深灰。唯一的"反色"是主按钮（InkBrush 黑底白字）——
-        它用来标记每屏唯一那个主要动作，不属于装饰。
-      · 圆角全部归零（RadiusSm/Md/Lg/Pill 都是 0）。
-        想要柔和一点：把下面 4 个 CornerRadius 改成 2/4/6/999 即可，别处不用动。
-      · 例外：语义状态色（Success/Warning/Danger/Info）保留彩色——
-        报警红、运行绿、警告黄必须一眼可辨，不能压成灰阶。
+    风格：波普 / Pop
+      · 硬朗黑框：卡片、按钮、输入框一律 2px 纯黑描边，直角；卡片带无模糊的
+        4px 黑投影（像贴纸）。这是全站最重的一条规则。
+      · 波普明黄 PopYellow #FFD400 是唯一的品牌色：主按钮、选中态、顶栏、状态栏、
+        卡片标题条。它代替了上一版的黑白灰——界面必须有颜色块，不能寡淡。
+      · 只做纯色块，不铺网点/纹理：细密点阵在正文尺寸下会变成噪点，
+        印刷感靠「黑框 + 硬投影 + 大色块」就成立。
+      · 文字：黑；白字只出现在深色块上（黑/红/蓝底）。
+      · 语义色保留高饱和（红=报警、绿=运行、橙=警告、蓝=信息），并一律配 2px 黑框。
 
     规则：控件样式只引用这里的令牌，不直接写十六进制色值；换主题只改本文件。
     ══════════════════════════════════════════════════════════════════════════
@@ -23,86 +22,103 @@
     <FontFamily x:Key="UiFontFamily">Microsoft YaHei UI, Segoe UI, Segoe UI Symbol</FontFamily>
     <FontFamily x:Key="MonoFontFamily">Consolas, Cascadia Mono, Microsoft YaHei UI</FontFamily>
 
-    <!-- ═══════════════ 表面 / 背景（全白，靠线分层） ═══════════════ -->
-    <SolidColorBrush x:Key="BackgroundBrush" Color="#FFFFFF" />   <!-- 窗口底 -->
+    <!-- ═══════════════ 表面 ═══════════════ -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#FFFBF0" />   <!-- 窗口底：暖白纸，卡片才是纯白 -->
     <SolidColorBrush x:Key="CardBrush"       Color="#FFFFFF" />   <!-- 卡片底 -->
-    <SolidColorBrush x:Key="SubtleBrush"     Color="#FAFAFA" />   <!-- 侧栏 / 表头 -->
-    <SolidColorBrush x:Key="MutedBrush"      Color="#F4F4F4" />   <!-- 凹陷 / 选中 / 只读 -->
-    <SolidColorBrush x:Key="HoverBrush"      Color="#EFEFEF" />   <!-- 悬停 -->
-    <SolidColorBrush x:Key="ScrimBrush"      Color="#33000000" /> <!-- 遮罩 -->
+    <SolidColorBrush x:Key="SubtleBrush"     Color="#FFF6DA" />   <!-- 暖黄白：表头/底栏 -->
+    <SolidColorBrush x:Key="MutedBrush"      Color="#F0EBD9" />   <!-- 凹陷：画布/只读 -->
+    <SolidColorBrush x:Key="HoverBrush"      Color="#FFF0B0" />   <!-- 通用悬停：淡黄 -->
+    <SolidColorBrush x:Key="ScrimBrush"      Color="#66000000" /> <!-- 遮罩 -->
+
+    <!-- ═══════════════ 墨（黑框 + 黑字） ═══════════════ -->
+    <SolidColorBrush x:Key="InkBrush"       Color="#0B0B0B" />    <!-- 描边 / 文字 / 填充 -->
+    <SolidColorBrush x:Key="InkHoverBrush"  Color="#2A2A2A" />
+    <SolidColorBrush x:Key="InkSoftBrush"   Color="#F6F5F0" />    <!-- 浅灰底（少数地方仍要中性底） -->
+
+    <!-- ═══════════════ 波普明黄 ═══════════════ -->
+    <SolidColorBrush x:Key="PopYellowBrush"      Color="#FFD400" /> <!-- 主色 -->
+    <SolidColorBrush x:Key="PopYellowHoverBrush" Color="#FFC400" /> <!-- 悬停 -->
+    <SolidColorBrush x:Key="PopYellowDeepBrush"  Color="#E8BE00" /> <!-- 按下 -->
+    <SolidColorBrush x:Key="PopYellowSoftBrush"  Color="#FFF7C2" /> <!-- 淡黄底：悬停/选中行 -->
 
     <!-- ═══════════════ 线 ═══════════════ -->
-    <SolidColorBrush x:Key="CardBorderBrush"   Color="#E6E6E6" /> <!-- 卡片轮廓：极浅发丝线 -->
-    <SolidColorBrush x:Key="DividerBrush"      Color="#EDEDED" /> <!-- 卡片内部分隔 -->
-    <SolidColorBrush x:Key="BorderBrush"       Color="#D4D4D4" /> <!-- 控件描边 -->
-    <SolidColorBrush x:Key="BorderStrongBrush" Color="#111111" /> <!-- 强调 / 聚焦描边 -->
-    <SolidColorBrush x:Key="DisabledBrush"     Color="#EDEDED" />
+    <SolidColorBrush x:Key="BorderStrongBrush" Color="#0B0B0B" /> <!-- 硬框 2px -->
+    <SolidColorBrush x:Key="BorderBrush"       Color="#0B0B0B" /> <!-- 控件描边 -->
+    <SolidColorBrush x:Key="CardBorderBrush"   Color="#0B0B0B" /> <!-- 卡片轮廓 -->
+    <SolidColorBrush x:Key="DividerBrush"      Color="#0B0B0B" /> <!-- 结构线（1px 黑） -->
+    <SolidColorBrush x:Key="InnerDividerBrush" Color="#E6E2D4" /> <!-- 卡片内部发丝线 -->
+    <SolidColorBrush x:Key="DisabledBrush"     Color="#EDEAE0" />
 
-    <!-- ═══════════════ 墨色（主色 = 黑，用于主按钮与强调态） ═══════════════ -->
-    <SolidColorBrush x:Key="InkBrush"       Color="#111111" />
-    <SolidColorBrush x:Key="InkHoverBrush"  Color="#2E2E2E" />
-    <SolidColorBrush x:Key="InkSoftBrush"   Color="#F0F0F0" /> <!-- 墨色的淡底：选中态 -->
+    <!-- ═══════════════ 文字 ═══════════════ -->
+    <SolidColorBrush x:Key="TextPrimaryBrush"   Color="#0B0B0B" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#3A3A3A" />
+    <SolidColorBrush x:Key="TextDimBrush"       Color="#6B6B6B" />
+    <SolidColorBrush x:Key="TextOnInkBrush"     Color="#FFFFFF" /> <!-- 黑/红/蓝底上的字 -->
+    <SolidColorBrush x:Key="SelectionBrush"     Color="#FFD400" /> <!-- 文本选中：明黄 -->
 
-    <!-- ═══════════════ 文字（全黑/深灰，没有白字，主按钮除外） ═══════════════ -->
-    <SolidColorBrush x:Key="TextPrimaryBrush"   Color="#111111" />
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#4A4A4A" />
-    <SolidColorBrush x:Key="TextDimBrush"       Color="#8A8A8A" /> <!-- 说明/占位 -->
-    <SolidColorBrush x:Key="TextOnInkBrush"     Color="#FFFFFF" /> <!-- 主按钮上的字 -->
-    <SolidColorBrush x:Key="SelectionBrush"     Color="#CFCFCF" /> <!-- 文本选中底色 -->
+    <!-- ═══════════════ 语义色（高饱和 + 黑框） ═══════════════ -->
+    <SolidColorBrush x:Key="InfoBrush"         Color="#0057FF" />
+    <SolidColorBrush x:Key="InfoHoverBrush"    Color="#0046CC" />
+    <SolidColorBrush x:Key="InfoSoftBrush"     Color="#E6EEFF" />
+    <SolidColorBrush x:Key="SuccessBrush"      Color="#00A651" />
+    <SolidColorBrush x:Key="SuccessHoverBrush" Color="#008741" />
+    <SolidColorBrush x:Key="SuccessSoftBrush"  Color="#DFF7E6" />
+    <SolidColorBrush x:Key="WarningBrush"      Color="#FF8A00" />
+    <SolidColorBrush x:Key="WarningHoverBrush" Color="#E07800" />
+    <SolidColorBrush x:Key="WarningSoftBrush"  Color="#FFF0D6" />
+    <SolidColorBrush x:Key="DangerBrush"       Color="#E4002B" />
+    <SolidColorBrush x:Key="DangerHoverBrush"  Color="#C00024" />
+    <SolidColorBrush x:Key="DangerSoftBrush"   Color="#FFE3E8" />
 
-    <!-- ═══════════════ 语义状态色（例外：保留彩色） ═══════════════ -->
-    <SolidColorBrush x:Key="InfoBrush"        Color="#2563EB" />
-    <SolidColorBrush x:Key="InfoHoverBrush"   Color="#1D4ED8" />
-    <SolidColorBrush x:Key="InfoSoftBrush"    Color="#EEF3FE" />
-    <SolidColorBrush x:Key="SuccessBrush"     Color="#16A34A" />
-    <SolidColorBrush x:Key="SuccessHoverBrush" Color="#15803D" />
-    <SolidColorBrush x:Key="SuccessSoftBrush" Color="#EDF8F1" />
-    <SolidColorBrush x:Key="WarningBrush"     Color="#D97706" />
-    <SolidColorBrush x:Key="WarningHoverBrush" Color="#B45309" />
-    <SolidColorBrush x:Key="WarningSoftBrush" Color="#FEF6E9" />
-    <SolidColorBrush x:Key="DangerBrush"      Color="#DC2626" />
-    <SolidColorBrush x:Key="DangerHoverBrush" Color="#B91C1C" />
-    <SolidColorBrush x:Key="DangerSoftBrush"  Color="#FDF0F0" />
+    <!-- ═══════════════ 自锁按键（抬起=未生效 / 按下=已生效） ═══════════════ -->
+    <SolidColorBrush x:Key="LatchPressedBrush"       Color="#FFD400" />
+    <SolidColorBrush x:Key="LatchPressedBorderBrush" Color="#0B0B0B" />
 
-    <!-- ═══════════════ 自锁按键（抬起 = 未生效 / 按下 = 已生效） ═══════════════ -->
-    <SolidColorBrush x:Key="LatchPressedBrush"       Color="#EAEAEA" />
-    <SolidColorBrush x:Key="LatchPressedBorderBrush" Color="#111111" />
-
-    <!-- ═══════════════ 圆角令牌（全部归零 = 直角） ═══════════════ -->
+    <!-- ═══════════════ 圆角令牌（全部归零 = 直角，波普不要圆角） ═══════════════ -->
     <CornerRadius x:Key="RadiusSm">0</CornerRadius>
     <CornerRadius x:Key="RadiusMd">0</CornerRadius>
     <CornerRadius x:Key="RadiusLg">0</CornerRadius>
     <CornerRadius x:Key="RadiusPill">0</CornerRadius>
 
-    <!-- ═══════════════ 排版 ═══════════════ -->
+    <!-- 说明：这里曾放过三支半调网点（Ben-Day dots）DrawingBrush，已按需求去掉。
+         界面只保留纯色块 + 黑框 + 硬投影；要恢复网点只需在本处重新定义
+         HalftoneYellowBrush 等键，再无别处需要改。 -->
+    <!-- 说明：这里曾放过 DropShadowEffect 硬投影（4~10px 无模糊偏移）。
+         实测在 2px 黑框旁边读不出"贴纸影子"，只是把右下边框加粗、显得不齐，
+         所以去掉——版面的重量交给黑框与色块。要恢复只需在本处重新定义
+         PopShadow 并给卡片样式加 Effect setter。 -->
+    <!-- ═══════════════ 排版（比上一版更粗、更响） ═══════════════ -->
     <Style x:Key="DisplayTextStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="20" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
     </Style>
 
     <!-- 页面标题 -->
-    <Style x:Key="PageTitle" TargetType="TextBlock" BasedOn="{StaticResource DisplayTextStyle}">
+    <Style x:Key="PageTitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Setter Property="Margin" Value="0,0,0,2" />
     </Style>
 
-    <!-- 页面副标题（一句话说清这页干什么） -->
+    <!-- 页面副标题 -->
     <Style x:Key="PageSubtitle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="12" />
-        <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
     <!-- 卡片标题 -->
     <Style x:Key="CardHeader" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
     </Style>
 
     <!-- 区块标题（旧键名，保留） -->
     <Style x:Key="SectionHeader" TargetType="TextBlock" BasedOn="{StaticResource CardHeader}">
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="15" />
         <Setter Property="Margin" Value="0,0,0,10" />
     </Style>
 
@@ -123,6 +139,7 @@
     <!-- 表单标签 -->
     <Style x:Key="FieldLabelTextStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
@@ -136,8 +153,8 @@
 
     <!-- 数字指标 -->
     <Style x:Key="MetricValue" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="24" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="26" />
+        <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
@@ -152,10 +169,11 @@
         <Setter Property="Margin" Value="0,0,0,2" />
     </Style>
 
-    <!-- 警示提示文字（唯一带色的正文） -->
+    <!-- 警示提示文字 -->
     <Style x:Key="HintText" TargetType="TextBlock">
         <Setter Property="FontSize" Value="12" />
-        <Setter Property="Foreground" Value="{StaticResource WarningBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource WarningHoverBrush}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 

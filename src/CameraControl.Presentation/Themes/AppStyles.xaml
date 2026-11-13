@@ -1,11 +1,11 @@
 <!--
-    AppStyles.xaml —— 界面骨架样式（页头 / 卡片组合 / 状态栏 / 空状态 / 横幅）
+    AppStyles.xaml —— 界面骨架样式（波普：黄顶栏 + 黄状态栏 + 黄标题块）
     ══════════════════════════════════════════════════════════════════════════
     分工：
       · Tokens.xaml  = 颜色 + 排版令牌（改色只改那里）
       · Controls.xaml = 单个控件长什么样
-      · AppStyles.xaml = 页面怎么拼（这一层只做布局与留白，不发明新颜色）
-    转换器（NullToCollapsed 等）仍在 App.xaml：它们依赖 C# 类型，不适合放字典。
+      · AppStyles.xaml = 页面怎么拼（这一层只做布局、色块与留白，不发明新颜色）
+    外壳三段黄：顶栏（品牌）、页面标题标记、状态栏。中间是白卡片 + 黑框。
     ══════════════════════════════════════════════════════════════════════════
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -21,23 +21,26 @@
     </Style>
 
     <!-- ═══════════════ 外壳：顶栏 / 侧栏 / 状态栏 ═══════════════ -->
+    <!-- 顶栏：波普明黄 + 3px 黑底边 -->
     <Style x:Key="AppHeaderBorder" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource BackgroundBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}" />
-        <Setter Property="BorderThickness" Value="0,0,0,1" />
-        <Setter Property="Padding" Value="20,14" />
+        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,3" />
+        <Setter Property="Padding" Value="20,12" />
     </Style>
 
+    <!-- 侧栏：白底 + 3px 黑右边（一分为二的版面） -->
     <Style x:Key="SidebarBorder" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource SubtleBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}" />
-        <Setter Property="BorderThickness" Value="0,0,1,0" />
+        <Setter Property="Background" Value="{StaticResource CardBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,3,0" />
     </Style>
 
+    <!-- 状态栏：波普明黄 + 3px 黑顶边 -->
     <Style x:Key="StatusBarBorder" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource BackgroundBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}" />
-        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
+        <Setter Property="BorderThickness" Value="0,3,0,0" />
         <Setter Property="Padding" Value="20,7" />
     </Style>
 
@@ -52,7 +55,48 @@
         <Setter Property="Padding" Value="20" />
     </Style>
 
+    <!-- ═══════════════ 页面标题：黄色方块 + 粗黑标题 ═══════════════ -->
+    <Style x:Key="PageHeaderRow" TargetType="StackPanel">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+
+    <Style x:Key="PageTitleMark" TargetType="Border">
+        <Setter Property="Width" Value="10" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="Margin" Value="0,0,10,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
     <!-- ═══════════════ 组合：动作行 / 字段行 / 指标 ═══════════════ -->
+    <!-- 卡片内小标题行：黄方块 + 粗标题（内容型卡片用，比整条黄标题栏轻） -->
+    <Style x:Key="SectionTitleRow" TargetType="StackPanel">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
+    <Style x:Key="SectionTitleMark" TargetType="Border">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Height" Value="17" />
+        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- 卡片标题条：黄底 + 2px 黑底线。只用于"面板型"卡片（列表/预览/日志/答复），
+         内容型卡片（参数、说明）用普通粗标题，避免满屏黄条。 -->
+    <Style x:Key="CardHeaderBar" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,2" />
+        <Setter Property="Padding" Value="14,9" />
+    </Style>
+
     <Style x:Key="ToolbarRow" TargetType="StackPanel">
         <Setter Property="Orientation" Value="Horizontal" />
         <Setter Property="Margin" Value="0,0,0,12" />
@@ -86,21 +130,21 @@
         <Setter Property="FontSize" Value="12" />
     </Style>
 
-    <!-- ═══════════════ 状态文字（语义色例外） ═══════════════ -->
+    <!-- ═══════════════ 状态文字（语义色） ═══════════════ -->
     <Style x:Key="TextSuccessStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource SuccessHoverBrush}" />
+        <Setter Property="FontWeight" Value="Bold" />
     </Style>
 
     <Style x:Key="TextDangerStyle" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontWeight" Value="Bold" />
     </Style>
 
     <!-- ═══════════════ 空状态 ═══════════════ -->
     <Style x:Key="EmptyStateText" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
         <Setter Property="TextAlignment" Value="Center" />
         <Setter Property="TextWrapping" Value="Wrap" />
         <Setter Property="HorizontalAlignment" Value="Center" />
@@ -109,31 +153,29 @@
         <Setter Property="LineHeight" Value="20" />
     </Style>
 
-    <!-- ═══════════════ 横幅（危险/警告/信息，唯一允许的彩色块） ═══════════════ -->
+    <!-- ═══════════════ 横幅（浅色底 + 2px 黑框，内文用语义色） ═══════════════ -->
     <Style x:Key="DangerBanner" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource DangerSoftBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
         <Setter Property="Padding" Value="12,9" />
     </Style>
 
     <Style x:Key="WarningBanner" TargetType="Border" BasedOn="{StaticResource DangerBanner}">
         <Setter Property="Background" Value="{StaticResource WarningSoftBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}" />
     </Style>
 
     <Style x:Key="InfoBanner" TargetType="Border" BasedOn="{StaticResource DangerBanner}">
         <Setter Property="Background" Value="{StaticResource InfoSoftBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource InfoBrush}" />
     </Style>
 
     <!-- ═══════════════ 导航图标（颜色跟随所在导航项的前景色） ═══════════════ -->
     <Style x:Key="NavIcon" TargetType="Path">
         <Setter Property="Stroke"
                 Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
-        <Setter Property="StrokeThickness" Value="1.3" />
-        <Setter Property="StrokeStartLineCap" Value="Round" />
-        <Setter Property="StrokeEndLineCap" Value="Round" />
+        <Setter Property="StrokeThickness" Value="1.8" />
+        <Setter Property="StrokeStartLineCap" Value="Square" />
+        <Setter Property="StrokeEndLineCap" Value="Square" />
         <Setter Property="Stretch" Value="None" />
         <Setter Property="Width" Value="18" />
         <Setter Property="Height" Value="18" />
@@ -143,8 +185,8 @@
 
     <!-- 小号行内图标（按钮/标题前缀） -->
     <Style x:Key="InlineIcon" TargetType="Path">
-        <Setter Property="Stroke" Value="{StaticResource TextDimBrush}" />
-        <Setter Property="StrokeThickness" Value="1.2" />
+        <Setter Property="Stroke" Value="{StaticResource InkBrush}" />
+        <Setter Property="StrokeThickness" Value="1.8" />
         <Setter Property="Stretch" Value="None" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Margin" Value="0,0,6,0" />

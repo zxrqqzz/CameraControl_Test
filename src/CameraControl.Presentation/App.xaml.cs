@@ -87,6 +87,14 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        // 界面目检：--shot <目录> 把每个窗口渲染成 PNG（只在开发时用）
+        string? shotDirectory = GetArgValue(e.Args, "--shot");
+        if (shotDirectory is not null)
+        {
+            Shutdown(UiShotHarness.Run(shotDirectory, _services));
+            return;
+        }
+
         // Composition 不引用 Presentation（避免反向依赖），
         // 所以视图模型由宿主用容器构造。
         var viewModel = ActivatorUtilities.CreateInstance<MainViewModel>(_services);

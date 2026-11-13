@@ -63,7 +63,10 @@
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0" Margin="0,0,0,14">
-                            <TextBlock Text="设备" Style="{StaticResource PageTitle}" />
+                            <StackPanel Style="{StaticResource PageHeaderRow}">
+                                <Border Style="{StaticResource PageTitleMark}" />
+                                <TextBlock Text="设备" Style="{StaticResource PageTitle}" />
+                            </StackPanel>
                             <TextBlock Style="{StaticResource PageSubtitle}"
                                        Text="刷新枚举 → 选中相机 → 连接 → 采集。图像只在内存里，不落盘。" />
                         </StackPanel>
@@ -83,29 +86,31 @@
                                         <RowDefinition Height="*" />
                                     </Grid.RowDefinitions>
 
-                                    <Grid Grid.Row="0" Margin="16,12,10,10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock Text="相机" Style="{StaticResource CardHeader}" VerticalAlignment="Center" />
-                                            <Border Style="{StaticResource BadgeBorderStyle}" Margin="8,0,0,0">
-                                                <TextBlock Style="{StaticResource BadgeTextStyle}"
-                                                           Text="{Binding Cameras.Count, StringFormat={}{0} 台}" />
-                                            </Border>
-                                        </StackPanel>
-                                        <Button Grid.Column="1" Content="刷新" Padding="10,4" FontSize="12"
-                                                Command="{Binding RefreshCamerasCommand}"
-                                                ToolTip="重新枚举本机相机" />
-                                    </Grid>
+                                    <Border Grid.Row="0" Style="{StaticResource CardHeaderBar}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="相机" Style="{StaticResource CardHeader}" VerticalAlignment="Center" />
+                                                <Border Style="{StaticResource BadgeBorderStyle}" Margin="8,0,0,0">
+                                                    <TextBlock Style="{StaticResource BadgeTextStyle}"
+                                                               Text="{Binding Cameras.Count, StringFormat={}{0} 台}" />
+                                                </Border>
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Content="刷新" Padding="10,3" FontSize="12"
+                                                    Command="{Binding RefreshCamerasCommand}"
+                                                    ToolTip="重新枚举本机相机" />
+                                        </Grid>
+                                    </Border>
 
                                     <Grid Grid.Row="1">
                                         <ListBox x:Name="DeviceList"
                                                  ItemsSource="{Binding Cameras}"
                                                  SelectedItem="{Binding SelectedCamera}"
                                                  Style="{StaticResource ListBoxStyle}"
-                                                 BorderThickness="0,1,0,0"
+                                                 BorderThickness="0"
                                                  Background="Transparent"
                                                  Padding="0"
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -177,31 +182,33 @@
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
-                                    <Grid Grid.Row="0" Margin="16,10,12,10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
+                                    <Border Grid.Row="0" Style="{StaticResource CardHeaderBar}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
 
-                                        <TextBlock Grid.Column="0" Text="图像预览"
-                                                   Style="{StaticResource CardHeader}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="0" Text="图像预览"
+                                                       Style="{StaticResource CardHeader}" VerticalAlignment="Center" />
 
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                            <Button Content="连接" Padding="12,5" FontSize="12"
-                                                    Margin="0,0,6,0"
-                                                    Command="{Binding ConnectCommand}" />
-                                            <Button Content="断开" Padding="12,5" FontSize="12"
-                                                    Margin="0,0,6,0"
-                                                    Command="{Binding DisconnectCommand}" />
-                                            <Button Content="拍一张" Padding="14,5" FontSize="12"
-                                                    Style="{StaticResource PrimaryButton}"
-                                                    Command="{Binding CaptureCommand}" />
-                                        </StackPanel>
-                                    </Grid>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                <Button Content="连接" Padding="12,3" FontSize="12"
+                                                        Margin="0,0,6,0"
+                                                        Command="{Binding ConnectCommand}" />
+                                                <Button Content="断开" Padding="12,3" FontSize="12"
+                                                        Margin="0,0,6,0"
+                                                        Command="{Binding DisconnectCommand}" />
+                                                <Button Content="拍一张" Padding="14,3" FontSize="12"
+                                                        Style="{StaticResource PrimaryButton}"
+                                                        Command="{Binding CaptureCommand}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
 
                                     <Border Grid.Row="1" Background="{StaticResource MutedBrush}"
-                                            BorderBrush="{StaticResource DividerBrush}"
-                                            BorderThickness="0,1,0,1">                                        <Grid>
+                                            BorderThickness="0">
+                                        <Grid>
                                             <TextBlock Style="{StaticResource EmptyStateText}"
                                                        Text="点击「拍一张」显示采集结果"
                                                        Visibility="{Binding PreviewImage, Converter={StaticResource NullToVisible}}" />
@@ -236,7 +243,10 @@
                         <StackPanel>
 
                             <StackPanel Margin="0,0,0,14">
+                                <StackPanel Style="{StaticResource PageHeaderRow}">
+                                <Border Style="{StaticResource PageTitleMark}" />
                                 <TextBlock Text="标定" Style="{StaticResource PageTitle}" />
+                            </StackPanel>
                                 <TextBlock Style="{StaticResource PageSubtitle}"
                                            Text="拍不少于 10 个视角 → 内置角点检测 → 张氏标定求解并保存。" />
                             </StackPanel>
@@ -350,39 +360,48 @@
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0" Margin="0,0,0,14">
-                            <TextBlock Text="系统" Style="{StaticResource PageTitle}" />
+                            <StackPanel Style="{StaticResource PageHeaderRow}">
+                                <Border Style="{StaticResource PageTitleMark}" />
+                                <TextBlock Text="系统" Style="{StaticResource PageTitle}" />
+                            </StackPanel>
                             <TextBlock Style="{StaticResource PageSubtitle}"
                                        Text="自检看环境是否可用；指标与审计看这台机器最近干了什么。" />
                         </StackPanel>
 
                         <!-- 自检 -->
-                        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,14">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+                        <Border Grid.Row="1" Style="{StaticResource FlushCardBorderStyle}" Margin="0,0,0,14">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
 
-                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="自检" Style="{StaticResource CardHeader}" VerticalAlignment="Center" />
-                                        <TextBlock Text="检查权限 / 系统 / 存储 / SDK / 相机"
-                                                   Style="{StaticResource CaptionTextStyle}"
-                                                   Margin="10,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
+                                <Border Grid.Row="0" Style="{StaticResource CardHeaderBar}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
 
-                                    <Button Grid.Column="1" Content="启动自检"
-                                            Padding="12,5" FontSize="12"
-                                            Command="{Binding RunSelfCheckCommand}" />
-                                </Grid>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="自检" Style="{StaticResource CardHeader}" VerticalAlignment="Center" />
+                                            <TextBlock Text="检查权限 / 系统 / 存储 / SDK / 相机"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Margin="10,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
 
-                                <Grid>
+                                        <Button Grid.Column="1" Content="启动自检"
+                                                Padding="12,3" FontSize="12"
+                                                Command="{Binding RunSelfCheckCommand}" />
+                                    </Grid>
+                                </Border>
+
+                                <Grid Grid.Row="1" Margin="0,8,0,8">
                                     <ListBox x:Name="SelfCheckList" ItemsSource="{Binding SelfCheckItems}"
                                              Style="{StaticResource LogListBoxStyle}"
                                              MaxHeight="190"
-                                             BorderThickness="0,1,0,0"
-                                             BorderBrush="{StaticResource DividerBrush}"
-                                             Padding="0,6,0,6" />
+                                             BorderThickness="0"
+                                             Padding="12,0" />
 
                                     <TextBlock Text="点「启动自检」检查这台机器能不能干活"
                                                Margin="0,16,0,16"
@@ -399,7 +418,7 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                 </Grid>
-                            </StackPanel>
+                            </Grid>
                         </Border>
 
                         <!-- 指标 / 审计 -->
@@ -417,22 +436,23 @@
                                         <RowDefinition Height="*" />
                                     </Grid.RowDefinitions>
 
-                                    <Grid Grid.Row="0" Margin="16,12,12,10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="指标" Style="{StaticResource CardHeader}"
-                                                   VerticalAlignment="Center" />
-                                        <Button Grid.Column="1" Content="刷新" Padding="10,4" FontSize="12"
-                                                Command="{Binding RefreshMetricsCommand}" />
-                                    </Grid>
+                                    <Border Grid.Row="0" Style="{StaticResource CardHeaderBar}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="指标" Style="{StaticResource CardHeader}"
+                                                       VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Content="刷新" Padding="10,3" FontSize="12"
+                                                    Command="{Binding RefreshMetricsCommand}" />
+                                        </Grid>
+                                    </Border>
 
                                     <Grid Grid.Row="1">
                                         <ListBox x:Name="MetricList" ItemsSource="{Binding MetricItems}"
                                                  Style="{StaticResource LogListBoxStyle}"
-                                                 BorderThickness="0,1,0,0"
-                                                 BorderBrush="{StaticResource DividerBrush}"
+                                                 BorderThickness="0"
                                                  Padding="12,8" />
 
                                         <TextBlock Text="点「刷新」查看运行时指标"
@@ -460,22 +480,23 @@
                                         <RowDefinition Height="*" />
                                     </Grid.RowDefinitions>
 
-                                    <Grid Grid.Row="0" Margin="16,12,12,10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="审计日志" Style="{StaticResource CardHeader}"
-                                                   VerticalAlignment="Center" />
-                                        <Button Grid.Column="1" Content="刷新" Padding="10,4" FontSize="12"
-                                                Command="{Binding RefreshAuditCommand}" />
-                                    </Grid>
+                                    <Border Grid.Row="0" Style="{StaticResource CardHeaderBar}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="审计日志" Style="{StaticResource CardHeader}"
+                                                       VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Content="刷新" Padding="10,3" FontSize="12"
+                                                    Command="{Binding RefreshAuditCommand}" />
+                                        </Grid>
+                                    </Border>
 
                                     <Grid Grid.Row="1">
                                         <ListBox x:Name="AuditList" ItemsSource="{Binding AuditItems}"
                                                  Style="{StaticResource LogListBoxStyle}"
-                                                 BorderThickness="0,1,0,0"
-                                                 BorderBrush="{StaticResource DividerBrush}"
+                                                 BorderThickness="0"
                                                  Padding="12,8" />
 
                                         <TextBlock Text="点「刷新」查看最近的操作留痕"
@@ -513,7 +534,10 @@
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0" Margin="0,0,0,14">
-                            <TextBlock Text="AI" Style="{StaticResource PageTitle}" />
+                            <StackPanel Style="{StaticResource PageHeaderRow}">
+                                <Border Style="{StaticResource PageTitleMark}" />
+                                <TextBlock Text="AI" Style="{StaticResource PageTitle}" />
+                            </StackPanel>
                             <TextBlock Style="{StaticResource PageSubtitle}"
                                        Text="用自然语言驱动相机与机器人；每次会变更物理设备的操作都会先弹窗口要人确认。" />
                         </StackPanel>
@@ -537,20 +561,22 @@
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
 
-                                <Grid Grid.Row="0" Margin="16,11,16,11">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+                                <Border Grid.Row="0" Style="{StaticResource CardHeaderBar}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
 
-                                    <TextBlock Grid.Column="0" Text="答复" Style="{StaticResource CardHeader}"
-                                               VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="0" Text="答复" Style="{StaticResource CardHeader}"
+                                                   VerticalAlignment="Center" />
 
-                                    <Border Grid.Column="1" Style="{StaticResource BadgeBorderStyle}"
-                                            Visibility="{Binding IsAiRunning, Converter={StaticResource BoolToVisibility}}">
-                                        <TextBlock Style="{StaticResource BadgeTextStyle}" Text="生成中…" />
-                                    </Border>
-                                </Grid>
+                                        <Border Grid.Column="1" Style="{StaticResource BadgeBorderStyle}"
+                                                Visibility="{Binding IsAiRunning, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Style="{StaticResource BadgeTextStyle}" Text="生成中…" />
+                                        </Border>
+                                    </Grid>
+                                </Border>
 
                                 <Grid Grid.Row="1" Margin="0,0,0,0">
                                     <TextBlock Margin="24"
@@ -753,7 +779,8 @@
 
                 <TextBlock Grid.Column="0" Text="{Binding Status}"
                            FontSize="12"
-                           Foreground="{StaticResource TextSecondaryBrush}"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}"
                            TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center"
                            ToolTip="{Binding Status}" />
@@ -761,7 +788,8 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}">
                     <TextBlock Text="处理中…" FontSize="12"
-                               Foreground="{StaticResource TextSecondaryBrush}" />
+                               FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}" />
                 </StackPanel>
             </Grid>
         </Border>

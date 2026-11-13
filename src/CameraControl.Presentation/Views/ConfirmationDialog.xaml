@@ -18,9 +18,9 @@
         <!-- 标题条：默认不可执行，所以用警示色而不是主色 -->
         <Border Style="{StaticResource AppHeaderBorder}" Padding="20,16,20,14">
             <StackPanel Orientation="Horizontal">
-                <Border Width="3" Background="{StaticResource WarningBrush}" Margin="0,0,12,0" />
+                <Border Width="6" Background="{StaticResource InkBrush}" Margin="0,0,12,0" />
                 <StackPanel>
-                    <TextBlock Text="需要人工确认" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="需要人工确认" FontSize="16" FontWeight="Bold" />
                     <TextBlock Text="AI 请求执行一个会改变设备状态的操作"
                                Style="{StaticResource PageSubtitle}" Margin="0,3,0,0" />
                 </StackPanel>
@@ -71,6 +71,7 @@
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Column="0" Style="{StaticResource CaptionTextStyle}"
+                           Foreground="{StaticResource TextPrimaryBrush}"
                            Text="按 ESC 或点「拒绝」都不会执行任何操作。" VerticalAlignment="Center" />
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
@@ -79,10 +80,11 @@
                             Margin="0,0,10,0"
                             IsCancel="True"
                             Click="OnRejectClick" />
+                    <!-- 批准 = 红色：这一下会动物理设备，颜色要和"危险"对上 -->
                     <Button Content="批准执行"
                             Width="112" Height="32"
                             IsDefault="True"
-                            Style="{StaticResource PrimaryButton}"
+                            Style="{StaticResource DangerButton}"
                             Click="OnApproveClick" />
                 </StackPanel>
             </Grid>

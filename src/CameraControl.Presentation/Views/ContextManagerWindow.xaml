@@ -97,6 +97,7 @@
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Column="0" Style="{StaticResource CaptionTextStyle}"
+                           Foreground="{StaticResource TextPrimaryBrush}"
                            Text="删除不可恢复；需要备份就先「打开文件夹」复制一份。"
                            VerticalAlignment="Center" />
 

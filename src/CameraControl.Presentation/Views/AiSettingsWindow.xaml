@@ -33,7 +33,10 @@
                 <!-- ① 新增配置：只填密钥 -->
                 <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,14">
                     <StackPanel>
-                        <TextBlock Text="新增配置" Style="{StaticResource CardHeader}" Margin="0,0,0,12" />
+                        <StackPanel Style="{StaticResource SectionTitleRow}">
+                            <Border Style="{StaticResource SectionTitleMark}" />
+                            <TextBlock Text="新增配置" Style="{StaticResource CardHeader}" />
+                        </StackPanel>
 
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -101,7 +104,10 @@
                 <!-- ② 使用中：切配置 / 切模型 / 切强度 -->
                 <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,14">
                     <StackPanel>
-                        <TextBlock Text="使用中" Style="{StaticResource CardHeader}" Margin="0,0,0,12" />
+                        <StackPanel Style="{StaticResource SectionTitleRow}">
+                            <Border Style="{StaticResource SectionTitleMark}" />
+                            <TextBlock Text="使用中" Style="{StaticResource CardHeader}" />
+                        </StackPanel>
 
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -168,7 +174,10 @@
                 <!-- ③ 上下文 -->
                 <Border Style="{StaticResource CardBorderStyle}">
                     <StackPanel>
-                        <TextBlock Text="上下文" Style="{StaticResource CardHeader}" Margin="0,0,0,6" />
+                        <StackPanel Style="{StaticResource SectionTitleRow}" Margin="0,0,0,6">
+                            <Border Style="{StaticResource SectionTitleMark}" />
+                            <TextBlock Text="上下文" Style="{StaticResource CardHeader}" />
+                        </StackPanel>
                         <TextBlock Style="{StaticResource CaptionTextStyle}"
                                    Text="对话会追加写入本地文档；档位决定它要不要作为模型输入。达到上限会自动归档并开新的。" />
 
