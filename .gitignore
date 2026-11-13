@@ -365,3 +365,6 @@ FodyWeavers.xsd
 testdata/
 # 运行时数据目录（配置含 DPAPI 加密的密钥、审计、日志）
 /data/
+
+# 上下文运行期状态（保留 mod.json 开关本身）
+/Mods/**/state.json

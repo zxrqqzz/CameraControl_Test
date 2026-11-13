@@ -165,6 +165,12 @@ public partial class App : System.Windows.Application
 
         // Markdown 渲染：覆盖标题/列表/表格/代码块/链接，确认不抛且真的产出了内容。
         // 渲染器在代码后台调用；正常运行时崩了只会看到空白，只能靠这里抓。
+        // 上下文：只是解析一次，确认 DI 接线没断（开关关掉也算正常，不在这里判失败）。
+        Check("解析 IContextStore", () =>
+        {
+            _ = _services!.GetRequiredService<CameraControl.Application.Cua.Context.IContextStore>();
+        });
+
         Check("Markdown 渲染", () =>
         {
             const string sample = """

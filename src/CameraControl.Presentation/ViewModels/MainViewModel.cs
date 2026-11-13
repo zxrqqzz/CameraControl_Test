@@ -3,6 +3,7 @@ using System.Windows.Media.Imaging;
 using CameraControl.Application.Auditing;
 using CameraControl.Application.Capture;
 using CameraControl.Application.Commands;
+using CameraControl.Application.Cua.Context;
 using CameraControl.Application.Cua;
 using CameraControl.Application.Diagnostics;
 using CameraControl.Domain.Cameras;
@@ -61,6 +62,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly LlmSettingsStore _llmSettings;
     private readonly ModelCatalogService _catalog;
     private readonly ProviderCatalog _providerCatalog;
+    private readonly IContextStore _contextStore;
     private readonly IAppLogger _logger;
 
     public MainViewModel(
@@ -74,6 +76,7 @@ public sealed partial class MainViewModel : ObservableObject
         LlmSettingsStore llmSettings,
         ModelCatalogService catalog,
         ProviderCatalog providerCatalog,
+        IContextStore contextStore,
         IAppLogger logger,
         CameraControl.Application.Commands.ICommandBus bus)
     {
@@ -87,6 +90,7 @@ public sealed partial class MainViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(llmSettings);
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(providerCatalog);
+        ArgumentNullException.ThrowIfNull(contextStore);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(bus);
 
@@ -100,6 +104,7 @@ public sealed partial class MainViewModel : ObservableObject
         _llmSettings = llmSettings;
         _catalog = catalog;
         _providerCatalog = providerCatalog;
+        _contextStore = contextStore;
         _logger = logger;
 
         Calibration = new CalibrationPanelViewModel(bus);
@@ -428,6 +433,7 @@ public sealed partial class MainViewModel : ObservableObject
                 : $"已加密保存 {active.KeyHint}";
 
         LoadCurrentSelection(active);
+        RefreshContextInfo();
 
         Status = settings.Profiles.Count == 0
             ? "还没有配置：填密钥后点「识别并新增」即可。"
@@ -762,6 +768,179 @@ public sealed partial class MainViewModel : ObservableObject
         AiUsageDetail = text.ToString().TrimEnd();
     }
 
+
+    // ── 上下文（Mods/context 开关）───────────────────────────
+
+    /// <summary>档位下拉的显示文本，顺序与 <see cref="ContextTier"/> 一致。</summary>
+    public ObservableCollection<string> AiContextTierOptions { get; } =
+    [
+        "Off（关闭：不记录不注入）",
+        "只存档（记录但不作为输入）",
+        "完整注入（记录并作为固定前缀）"
+    ];
+
+    [ObservableProperty]
+    private int _aiContextTierIndex = 2;
+
+    [ObservableProperty]
+    private string _aiContextSummary = "—";
+
+    /// <summary>功能被开关关闭时隐藏整块，避免误导。</summary>
+    [ObservableProperty]
+    private bool _aiContextVisible;
+
+    private bool _loadingContext;
+
+    partial void OnAiContextTierIndexChanged(int value) => ApplyContextTier(value);
+
+    private void ApplyContextTier(int index)
+    {
+        if (_loadingContext) return;
+
+        LlmProfile? active = _llmSettings.ActiveProfile();
+
+        if (active is null) return;
+
+        try
+        {
+            _contextStore.SetTier(active.Id, (ContextTier)index);
+            RefreshContextInfo();
+            Status = $"上下文档位已切换为：{AiContextTierOptions[Math.Clamp(index, 0, AiContextTierOptions.Count - 1)]}";
+        }
+        catch (Exception ex)
+        {
+            LogFailure("切换上下文档位", ex, null);
+            Status = $"切换档位失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>刷新编号、条数、占用与档位。</summary>
+    private void RefreshContextInfo()
+    {
+        LlmProfile? active = _llmSettings.ActiveProfile();
+
+        AiContextVisible = _contextStore.IsEnabled && active is not null;
+
+        if (!AiContextVisible)
+        {
+            AiContextSummary = _contextStore.IsEnabled
+                ? "还没有配置，无法建立上下文。"
+                : "上下文功能已关闭：Mods/context/mod.json 缺失或 enabled=false。";
+            return;
+        }
+
+        try
+        {
+            string? id = _contextStore.GetActiveContextId(active!.Id);
+            ContextSnapshot? snapshot = id is null
+                ? null
+                : _contextStore.List(active.Id).FirstOrDefault(c => c.Id == id);
+
+            AiContextSummary = snapshot is null
+                ? "还没有上下文（本轮对话会自动创建）"
+                : $"{snapshot.Id} · {snapshot.EntryCount} 条 · 约 {snapshot.EstimatedTokens:N0} tok";
+
+            _loadingContext = true;
+            AiContextTierIndex = (int)_contextStore.GetTier(active.Id);
+            _loadingContext = false;
+        }
+        catch (Exception ex)
+        {
+            LogFailure("读取上下文信息", ex, null);
+            AiContextSummary = $"读取失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>开启新对话：旧内容保留（归档），开一份新的。</summary>
+    [RelayCommand]
+    private void StartNewContext()
+    {
+        LlmProfile? active = _llmSettings.ActiveProfile();
+
+        if (active is null || !_contextStore.IsEnabled)
+        {
+            Status = "没有可用的配置或上下文功能已关闭。";
+            return;
+        }
+
+        try
+        {
+            string id = _contextStore.StartNewContext(active.Id);
+            RefreshContextInfo();
+            Status = $"已开启新对话（{id}）。上一份上下文已归档保留。";
+        }
+        catch (Exception ex)
+        {
+            LogFailure("开启新对话", ex, null);
+            Status = $"开启新对话失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>清空：删除当前上下文内容并新建。</summary>
+    [RelayCommand]
+    private void ClearContext()
+    {
+        LlmProfile? active = _llmSettings.ActiveProfile();
+
+        if (active is null || !_contextStore.IsEnabled)
+        {
+            Status = "没有可用的配置或上下文功能已关闭。";
+            return;
+        }
+
+        bool confirmed = Dialog.Confirm(
+            "清空上下文",
+            "这会删除当前上下文的全部内容（不可恢复），然后开启一份新的。\n\n" +
+            "如果你只是想换个话题但保留旧内容，请用「开启新对话」。");
+
+        if (!confirmed)
+        {
+            Status = "已取消清空。";
+            return;
+        }
+
+        try
+        {
+            string id = _contextStore.ClearCurrent(active.Id);
+            RefreshContextInfo();
+            Status = $"已清空并开启新上下文（{id}）。";
+        }
+        catch (Exception ex)
+        {
+            LogFailure("清空上下文", ex, null);
+            Status = $"清空失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>管理：查看/删除全部上下文（含归档）。</summary>
+    [RelayCommand]
+    private void ManageContexts()
+    {
+        LlmProfile? active = _llmSettings.ActiveProfile();
+
+        if (active is null || !_contextStore.IsEnabled)
+        {
+            Status = "没有可用的配置或上下文功能已关闭。";
+            return;
+        }
+
+        try
+        {
+            var window = new Views.ContextManagerWindow(_contextStore, active.Id, Dialog)
+            {
+                Owner = System.Windows.Application.Current?.MainWindow
+            };
+
+            window.ShowDialog();
+            RefreshContextInfo();
+        }
+        catch (Exception ex)
+        {
+            LogFailure("打开上下文管理", ex, null);
+            Status = $"无法打开管理窗口：{ex.Message}";
+        }
+    }
+
     private static string Truncate(string text, int max) =>
         text.Length <= max ? text : text[..(max - 1)] + "…";
 
@@ -794,7 +973,10 @@ public sealed partial class MainViewModel : ObservableObject
         await RunGuardedAsync("AI 任务", async () =>
         {
             AiTaskResult result = await _agent.RunAsync(
-                new AiTaskRequest(AiGoal, MaxSteps: 8),
+                new AiTaskRequest(
+                    AiGoal,
+                    MaxSteps: 8,
+                    ContextProfileId: _llmSettings.ActiveProfile()?.Id),
                 Actor.Ai("wpf-agent", Guid.NewGuid().ToString("N")[..8]),
                 CancellationToken.None);
 
@@ -813,6 +995,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             ApplyAiUsage(result.Usage);
+            RefreshContextInfo();
 
             if (result.Completed)
             {

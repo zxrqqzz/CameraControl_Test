@@ -62,6 +62,7 @@ public sealed class CuaAgent : IAiAgent
     private readonly Commands.ICommandBus _bus;
     private readonly Diagnostics.IMetrics _metrics;
     private readonly Diagnostics.IAppLogger _logger;
+    private readonly Context.IContextStore? _context;
 
     public CuaAgent(
         ILlmProvider provider,
@@ -69,7 +70,8 @@ public sealed class CuaAgent : IAiAgent
         ICommandBinder binder,
         Commands.ICommandBus bus,
         Diagnostics.IMetrics metrics,
-        Diagnostics.IAppLogger logger)
+        Diagnostics.IAppLogger logger,
+        Context.IContextStore? context = null)
     {
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentNullException.ThrowIfNull(catalog);
@@ -84,6 +86,7 @@ public sealed class CuaAgent : IAiAgent
         _bus = bus;
         _metrics = metrics;
         _logger = logger;
+        _context = context;
     }
 
     public string ProviderName => _provider.Name;
@@ -108,9 +111,36 @@ public sealed class CuaAgent : IAiAgent
             Description: d.Description,
             ParametersJsonSchema: d.ParametersJsonSchema ?? """{ "type": "object", "properties": {} }"""))];
 
+        // 历史对话作为**固定前缀**注入：内容只在末尾增长，
+        // 已有部分逐字节不变，服务端缓存才能持续命中。
+        // 顺序很关键——能力清单（常量）在前，历史（增长）在后。
+        string historyPrefix = string.Empty;
+
+        if (!string.IsNullOrEmpty(request.ContextProfileId) && _context is not null)
+        {
+            try
+            {
+                historyPrefix = _context.BuildPrefix(request.ContextProfileId);
+            }
+            catch (Exception ex)
+            {
+                // 上下文读不出来不能拖垮任务本身
+                _logger.Warn("读取上下文失败，本轮不注入历史", new Dictionary<string, object?>
+                {
+                    ["type"] = ex.GetType().Name,
+                    ["message"] = ex.Message
+                });
+            }
+        }
+
+        string systemPrompt = CuaPromptBuilder.BuildSystemPrompt(catalogMarkdown, _provider.Name);
+
+        if (historyPrefix.Length > 0)
+            systemPrompt += "\n\n【历史对话】\n" + historyPrefix;
+
         var messages = new List<LlmMessage>
         {
-            LlmMessage.System(CuaPromptBuilder.BuildSystemPrompt(catalogMarkdown, _provider.Name)),
+            LlmMessage.System(systemPrompt),
             LlmMessage.User(request.Goal)
         };
 
@@ -171,6 +201,10 @@ public sealed class CuaAgent : IAiAgent
             if (toolCalls.Count == 0)
             {
                 steps.Add(new AiStep(step, response.Message.Content, []));
+
+                // 只记录"用户输入 + 模型最终输出"，与设计一致：
+                // 工具调用的中间过程不进上下文，避免文档膨胀与缓存抖动。
+                RecordTurn(request, response.Message.Content);
                 _metrics.Increment("ai.task.completed");
 
                 return new AiTaskResult(
@@ -305,6 +339,27 @@ public sealed class CuaAgent : IAiAgent
     {
         if (text.Length <= MaxToolResultChars) return text;
         return text[..MaxToolResultChars] + "…(已截断)";
+    }
+
+    /// <summary>把这一轮的"用户输入 + 模型最终输出"写进上下文。</summary>
+    private void RecordTurn(AiTaskRequest request, string? answer)
+    {
+        if (string.IsNullOrEmpty(request.ContextProfileId) || _context is null) return;
+        if (answer is null) return;
+
+        try
+        {
+            _context.AppendTurn(request.ContextProfileId, request.Goal, answer);
+        }
+        catch (Exception ex)
+        {
+            // 写不进上下文不该让任务失败，但必须留痕
+            _logger.Warn("记录上下文失败", new Dictionary<string, object?>
+            {
+                ["type"] = ex.GetType().Name,
+                ["message"] = ex.Message
+            });
+        }
     }
 
     private static LlmUsage? Accumulate(LlmUsage? total, LlmUsage? delta) => total is null

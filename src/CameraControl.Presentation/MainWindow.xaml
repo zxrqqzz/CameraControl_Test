@@ -433,6 +433,50 @@
 
                             <TextBlock Text="{Binding AiCatalogSource}" FontSize="11" Margin="52,4,0,0"
                                        TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+
+                            <Separator Margin="0,14,0,12" />
+
+                            <!-- ③ 上下文：档位 + 两个清空语义 + 管理入口 -->
+                            <StackPanel>
+                                <TextBlock Text="上下文" FontWeight="SemiBold" />
+                                <TextBlock Text="对话会追加写入本地文档；档位决定它要不要作为模型输入。达到上限会自动归档并开新的。"
+                                           FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
+                                           Foreground="{StaticResource MutedBrush}" />
+
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="260" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0" Text="档位：" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <ComboBox Grid.Column="1" Height="30"
+                                              ItemsSource="{Binding AiContextTierOptions}"
+                                              SelectedIndex="{Binding AiContextTierIndex}" />
+
+                                    <Button Grid.Column="2" Content="开启新对话"
+                                            Style="{StaticResource ToolButtonStyle}"
+                                            Command="{Binding StartNewContextCommand}"
+                                            Margin="8,0,0,0"
+                                            Visibility="{Binding AiContextVisible, Converter={StaticResource BoolToVisibility}}" />
+                                    <Button Grid.Column="3" Content="清空"
+                                            Style="{StaticResource ToolButtonStyle}"
+                                            Command="{Binding ClearContextCommand}"
+                                            Margin="6,0,0,0"
+                                            Visibility="{Binding AiContextVisible, Converter={StaticResource BoolToVisibility}}" />
+                                    <Button Grid.Column="4" Content="管理…"
+                                            Style="{StaticResource ToolButtonStyle}"
+                                            Command="{Binding ManageContextsCommand}"
+                                            Margin="6,0,0,0"
+                                            Visibility="{Binding AiContextVisible, Converter={StaticResource BoolToVisibility}}" />
+                                </Grid>
+
+                                <TextBlock Text="{Binding AiContextSummary}" FontSize="11" Margin="52,4,0,0"
+                                           TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 

@@ -10,6 +10,8 @@ using CameraControl.Domain.Ports;
 using CameraControl.Domain.Privacy;
 using CameraControl.Domain.Robotics;
 using CameraControl.Infrastructure;
+using CameraControl.Application.Cua.Context;
+using CameraControl.Infrastructure.Context;
 using CameraControl.Infrastructure.Ai;
 using CameraControl.Infrastructure.Auditing;
 using CameraControl.Infrastructure.Cameras;
@@ -61,6 +63,19 @@ public static class ServiceRegistration
     ///
     /// 每个候选都用**真实写一个随机文件**来验证，不只看权限位。
     /// </summary>
+    /// <summary>
+    /// 解析 <c>Mods</c> 目录：优先仓库根（源码运行），否则可执行文件旁（发布版）。
+    /// 开关文件是 <c>Mods/context/mod.json</c>；整个目录缺失即视为关闭该功能。
+    /// </summary>
+    public static string ResolveModsDirectory()
+    {
+        string? repositoryRoot = FindRepositoryRoot();
+
+        return repositoryRoot is not null
+            ? Path.Combine(repositoryRoot, "Mods")
+            : Path.Combine(AppContext.BaseDirectory, "Mods");
+    }
+
     public static string ResolveDataDirectory(string? dataDirectory = null)
     {
         if (!string.IsNullOrWhiteSpace(dataDirectory)) return dataDirectory;
@@ -338,6 +353,21 @@ public static class ServiceRegistration
 
         // ── AI / CUA ────────────────────────────────────────────
         services.AddSingleton<ISecretProtector, DpapiSecretProtector>();
+        // ── 上下文（Mods/context/mod.json 开关）──────────────
+        // 不做 DLL 反射加载：只需要"能关、能删干净"，
+        // 而插件一多，反射扫描会拖慢启动。
+        string modsDirectory = ResolveModsDirectory();
+        ContextModSettings contextMods = ContextModSettings.Load(modsDirectory);
+
+        services.AddSingleton(contextMods);
+
+        services.AddSingleton<ITokenEstimator, CharacterTokenEstimator>();
+
+        services.AddSingleton<IContextStore>(sp => new JsonlContextStore(
+            Path.Combine(dataDirectory, "context"),
+            contextMods.ToStoreOptions(),
+            sp.GetRequiredService<ITokenEstimator>()));
+
         services.AddSingleton<LlmSettingsStore>();
         services.AddSingleton<ModelCatalogService>();
         services.AddSingleton<ProviderCatalog>();

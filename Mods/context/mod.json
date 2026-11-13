@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "maxEstimatedTokens": 1000000,
+  "maxEntryChars": 8000,
+  "defaultTier": "InjectFull"
+}

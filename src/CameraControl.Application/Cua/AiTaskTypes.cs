@@ -4,7 +4,14 @@ namespace CameraControl.Application.Cua;
 /// <param name="Goal">自然语言目标，如"拍一张当前工件并告诉我分辨率"。</param>
 /// <param name="MaxSteps">最大工具调用轮数，防止死循环。</param>
 /// <param name="Model">模型名；null 用提供方默认。</param>
-public sealed record AiTaskRequest(string Goal, int MaxSteps = 8, string? Model = null);
+/// <param name="ContextProfileId">
+/// 用哪套配置的上下文文档。null 表示不读写上下文（例如连通性测试）。
+/// </param>
+public sealed record AiTaskRequest(
+    string Goal,
+    int MaxSteps = 8,
+    string? Model = null,
+    string? ContextProfileId = null);
 
 /// <summary>单次工具调用记录。</summary>
 /// <param name="CapabilityId">能力 id（绑定时已知）；无法识别时为原始工具名。</param>

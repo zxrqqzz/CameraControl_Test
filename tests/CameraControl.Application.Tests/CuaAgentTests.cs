@@ -1,6 +1,7 @@
 using CameraControl.Application.Auditing;
 using CameraControl.Application.Capabilities;
 using CameraControl.Application.Commands;
+using CameraControl.Application.Cua.Context;
 using CameraControl.Application.Cua;
 using CameraControl.Application.Diagnostics;
 using CameraControl.Application.Tests.Fakes;
@@ -273,5 +274,133 @@ public sealed class CuaAgentTests
         Assert.Equal(LlmRole.System, system.Role);
         Assert.Contains("cua.getCapabilities", system.Content!, StringComparison.Ordinal);
         Assert.Contains("硬性规则", system.Content!, StringComparison.Ordinal);
+    }
+
+    // ── 上下文接入 ──────────────────────────────────────────
+
+    /// <summary>记录式上下文存储：只关心"有没有注入、有没有记录"。</summary>
+    private sealed class RecordingContextStore : IContextStore
+    {
+        public string Prefix { get; set; } = string.Empty;
+
+        public bool ThrowOnPrefix { get; set; }
+
+        public List<(string User, string Assistant)> Turns { get; } = [];
+
+        public bool IsEnabled => true;
+
+        public ContextTier GetTier(string profileId) => ContextTier.InjectFull;
+
+        public void SetTier(string profileId, ContextTier tier)
+        {
+        }
+
+        public string BuildPrefix(string profileId) =>
+            ThrowOnPrefix ? throw new InvalidOperationException("读不出来") : Prefix;
+
+        public void AppendTurn(string profileId, string userText, string assistantText) =>
+            Turns.Add((userText, assistantText));
+
+        public string StartNewContext(string profileId) => "ctx-000001";
+
+        public string ClearCurrent(string profileId) => "ctx-000002";
+
+        public IReadOnlyList<ContextSnapshot> List(string profileId) => [];
+
+        public bool Delete(string profileId, string contextId) => false;
+
+        public string? GetActiveContextId(string profileId) => null;
+    }
+
+    private static (CuaAgent Agent, ScriptedLlmProvider Llm) BuildWithContext(IContextStore store)
+    {
+        var registry = new CapabilityRegistry();
+        registry.Register(new EchoHandler());
+        registry.Register(new CuaGetCapabilitiesCapability(registry, new FakeClock()));
+
+        var llm = new ScriptedLlmProvider();
+
+        var bus = new CommandBus(
+            registry,
+            new DefaultRiskPolicy(),
+            new InMemoryAuditLog(),
+            new FakeClock(),
+            new InMemoryMetrics(),
+            new FakeAppLogger());
+
+        var agent = new CuaAgent(
+            llm,
+            registry,
+            new TestBinder(),
+            bus,
+            new InMemoryMetrics(),
+            new FakeAppLogger(),
+            store);
+
+        return (agent, llm);
+    }
+
+    [Fact]
+    public async Task 上下文前缀应注入到系统消息()
+    {
+        var store = new RecordingContextStore { Prefix = "用户：上一轮问题\n助手：上一轮回答\n" };
+        (CuaAgent agent, ScriptedLlmProvider llm) = BuildWithContext(store);
+        llm.ThenAnswer("好的");
+
+        await agent.RunAsync(
+            new AiTaskRequest("新问题", ContextProfileId: "p1"),
+            Actor.Ai("tester"),
+            CancellationToken.None);
+
+        string system = llm.Requests[0].Messages[0].Content!;
+
+        Assert.Contains("上一轮问题", system, StringComparison.Ordinal);
+        Assert.Contains("上一轮回答", system, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task 完成一轮后应把问答写入上下文()
+    {
+        var store = new RecordingContextStore();
+        (CuaAgent agent, ScriptedLlmProvider llm) = BuildWithContext(store);
+        llm.ThenAnswer("答复内容");
+
+        await agent.RunAsync(
+            new AiTaskRequest("问题内容", ContextProfileId: "p1"),
+            Actor.Ai("tester"),
+            CancellationToken.None);
+
+        Assert.Single(store.Turns);
+        Assert.Equal("问题内容", store.Turns[0].User);
+        Assert.Equal("答复内容", store.Turns[0].Assistant);
+    }
+
+    [Fact]
+    public async Task 未指定上下文配置时不读写上下文()
+    {
+        var store = new RecordingContextStore { Prefix = "不该出现的内容" };
+        (CuaAgent agent, ScriptedLlmProvider llm) = BuildWithContext(store);
+        llm.ThenAnswer("好");
+
+        await agent.RunAsync(new AiTaskRequest("问题"), Actor.Ai("tester"), CancellationToken.None);
+
+        Assert.DoesNotContain("不该出现的内容", llm.Requests[0].Messages[0].Content!, StringComparison.Ordinal);
+        Assert.Empty(store.Turns);
+    }
+
+    [Fact]
+    public async Task 上下文读取失败不应影响任务完成()
+    {
+        var store = new RecordingContextStore { ThrowOnPrefix = true };
+        (CuaAgent agent, ScriptedLlmProvider llm) = BuildWithContext(store);
+        llm.ThenAnswer("仍然完成");
+
+        AiTaskResult result = await agent.RunAsync(
+            new AiTaskRequest("问题", ContextProfileId: "p1"),
+            Actor.Ai("tester"),
+            CancellationToken.None);
+
+        Assert.True(result.Completed);
+        Assert.Equal("仍然完成", result.Answer);
     }
 }
