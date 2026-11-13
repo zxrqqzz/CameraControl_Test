@@ -21,26 +21,26 @@
     </Style>
 
     <!-- ═══════════════ 外壳：顶栏 / 侧栏 / 状态栏 ═══════════════ -->
-    <!-- 顶栏：波普明黄 + 3px 黑底边 -->
+    <!-- 顶栏：白底 + 2px 黑底边（背景保持安静，颜色留给交互元素） -->
     <Style x:Key="AppHeaderBorder" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="Background" Value="{StaticResource CardBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
-        <Setter Property="BorderThickness" Value="0,0,0,3" />
-        <Setter Property="Padding" Value="20,12" />
+        <Setter Property="BorderThickness" Value="0,0,0,2" />
+        <Setter Property="Padding" Value="20,11" />
     </Style>
 
-    <!-- 侧栏：白底 + 3px 黑右边（一分为二的版面） -->
+    <!-- 侧栏：白底 + 2px 黑右边（一分为二的版面） -->
     <Style x:Key="SidebarBorder" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource CardBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
-        <Setter Property="BorderThickness" Value="0,0,3,0" />
+        <Setter Property="BorderThickness" Value="0,0,2,0" />
     </Style>
 
-    <!-- 状态栏：波普明黄 + 3px 黑顶边 -->
+    <!-- 状态栏：白底 + 1px 黑顶边 -->
     <Style x:Key="StatusBarBorder" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="Background" Value="{StaticResource CardBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
-        <Setter Property="BorderThickness" Value="0,3,0,0" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
         <Setter Property="Padding" Value="20,7" />
     </Style>
 
@@ -64,7 +64,7 @@
     <Style x:Key="PageTitleMark" TargetType="Border">
         <Setter Property="Width" Value="10" />
         <Setter Property="Height" Value="28" />
-        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
         <Setter Property="BorderThickness" Value="2" />
         <Setter Property="Margin" Value="0,0,10,0" />
@@ -81,19 +81,19 @@
     <Style x:Key="SectionTitleMark" TargetType="Border">
         <Setter Property="Width" Value="8" />
         <Setter Property="Height" Value="17" />
-        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
         <Setter Property="BorderThickness" Value="2" />
         <Setter Property="Margin" Value="0,0,8,0" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
-    <!-- 卡片标题条：黄底 + 2px 黑底线。只用于"面板型"卡片（列表/预览/日志/答复），
-         内容型卡片（参数、说明）用普通粗标题，避免满屏黄条。 -->
+    <!-- 卡片标题条：白底 + 1px 黑底线 + 左侧小黄块（由视图里放 SectionTitleMark）。
+         背景不放颜色：颜色是"可点/已选"的信号，不能拿来做装饰。 -->
     <Style x:Key="CardHeaderBar" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="Background" Value="{StaticResource CardBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
-        <Setter Property="BorderThickness" Value="0,0,0,2" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
         <Setter Property="Padding" Value="14,9" />
     </Style>
 

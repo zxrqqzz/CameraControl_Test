@@ -68,7 +68,7 @@
 
     <!-- 主按钮：波普明黄 + 黑字（每屏常用于唯一主要动作） -->
     <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
-        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Setter Property="Tag" Value="{StaticResource PopYellowHoverBrush}" />
         <Setter Property="FontWeight" Value="Bold" />
@@ -177,7 +177,7 @@
                             <Setter TargetName="bd" Property="Background" Value="{StaticResource HoverBrush}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{StaticResource PopYellowBrush}" />
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
                             <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource InkBrush}" />
                             <Setter Property="FontWeight" Value="Bold" />
                         </Trigger>
@@ -249,7 +249,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="track" Property="Background" Value="{StaticResource PopYellowBrush}" />
+                            <Setter TargetName="track" Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
                             <Setter TargetName="thumb" Property="HorizontalAlignment" Value="Right" />
                             <Setter TargetName="thumb" Property="Margin" Value="0,0,2,0" />
                         </Trigger>
@@ -294,7 +294,7 @@
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{StaticResource PopYellowBrush}" />
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
                             <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource InkBrush}" />
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                             <Setter Property="FontWeight" Value="Bold" />
@@ -504,7 +504,7 @@
 
                         <!-- 箭头区：黄底黑框，点它就是下拉 -->
                         <Border x:Name="arrowArea" Width="28" HorizontalAlignment="Right"
-                                Background="{StaticResource PopYellowBrush}"
+                                Background="{StaticResource PopYellowHalftoneBrush}"
                                 BorderBrush="{StaticResource InkBrush}" BorderThickness="2,0,0,0">
                             <ToggleButton x:Name="ArrowToggle"
                                           Focusable="False" ClickMode="Press"
@@ -568,7 +568,7 @@
                             <Setter TargetName="bd" Property="Background" Value="{StaticResource HoverBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{StaticResource PopYellowBrush}" />
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
@@ -614,7 +614,7 @@
                             <Setter TargetName="box" Property="Background" Value="{StaticResource PopYellowSoftBrush}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="box" Property="Background" Value="{StaticResource PopYellowBrush}" />
+                            <Setter TargetName="box" Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
                             <Setter TargetName="check" Property="Visibility" Value="Visible" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                         </Trigger>
@@ -649,7 +649,7 @@
                             <Setter TargetName="ring" Property="Fill" Value="{StaticResource PopYellowSoftBrush}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="ring" Property="Fill" Value="{StaticResource PopYellowBrush}" />
+                            <Setter TargetName="ring" Property="Fill" Value="{StaticResource PopYellowHalftoneBrush}" />
                             <Setter TargetName="dot" Property="Visibility" Value="Visible" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                         </Trigger>
@@ -682,7 +682,7 @@
                             <Setter TargetName="bd" Property="Background" Value="{StaticResource HoverBrush}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{StaticResource PopYellowBrush}" />
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
                             <Setter Property="FontWeight" Value="Bold" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
@@ -729,7 +729,7 @@
                             <Setter TargetName="bd" Property="Background" Value="{StaticResource HoverBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{StaticResource PopYellowBrush}" />
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
                             <Setter TargetName="bar" Property="Background" Value="{StaticResource InkBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
@@ -753,7 +753,7 @@
 
     <!-- 数据行列表（设备列表用）：行之间 1px 黑线，像漫画分格 -->
     <Style x:Key="RowBorderStyle" TargetType="Border">
-        <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
         <Setter Property="Padding" Value="12,10" />
         <Setter Property="Background" Value="Transparent" />
@@ -773,7 +773,7 @@
 
     <!-- 强调卡（黄底） -->
     <Style x:Key="AccentCardBorderStyle" TargetType="Border" BasedOn="{StaticResource CardBorderStyle}">
-        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
     </Style>
 
     <!-- 无内边距的卡片（列表直接贴边） -->
@@ -784,7 +784,7 @@
     <!-- 卡片内分隔线 -->
     <Style x:Key="CardDivider" TargetType="Separator">
         <Setter Property="Background" Value="{StaticResource InkBrush}" />
-        <Setter Property="Height" Value="2" />
+        <Setter Property="Height" Value="1" />
         <Setter Property="Margin" Value="0,12" />
     </Style>
 
@@ -866,7 +866,7 @@
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{StaticResource PopYellowBrush}" />
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
                             <Setter Property="FontWeight" Value="Bold" />
                             <Setter TargetName="underline" Property="Background" Value="{StaticResource InkBrush}" />
@@ -963,7 +963,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Slider">
                     <Grid VerticalAlignment="Center">
-                        <Border Height="6" Background="{StaticResource PopYellowBrush}"
+                        <Border Height="6" Background="{StaticResource PopYellowHalftoneBrush}"
                                 BorderBrush="{StaticResource InkBrush}" BorderThickness="2"
                                 VerticalAlignment="Center" />
                         <Track x:Name="PART_Track">
@@ -1049,7 +1049,7 @@
     <Style TargetType="ScrollBar" BasedOn="{StaticResource ScrollBarStyle}" />
 
     <Style TargetType="ToolTip">
-        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
         <Setter Property="BorderThickness" Value="2" />
@@ -1073,7 +1073,7 @@
 
     <!-- 徽标 / 状态标签：白底 + 2px 黑框（放在黄标题条上也读得清），没有圆角 -->
     <Style x:Key="BadgeBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource CardBrush}" />
+        <Setter Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
         <Setter Property="CornerRadius" Value="{StaticResource RadiusPill}" />
         <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
         <Setter Property="BorderThickness" Value="2" />
@@ -1140,7 +1140,7 @@
     </Style>
 
     <Style TargetType="DataGridColumnHeader">
-        <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+        <Setter Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="FontSize" Value="11" />
@@ -1158,7 +1158,7 @@
                 <Setter Property="Background" Value="{StaticResource HoverBrush}" />
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="{StaticResource PopYellowBrush}" />
+                <Setter Property="Background" Value="{StaticResource PopYellowHalftoneBrush}" />
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
             </Trigger>
         </Style.Triggers>
