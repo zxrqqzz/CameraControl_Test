@@ -57,6 +57,28 @@ dotnet run -- --help
 dotnet run -- --mode baseline --frames 60 --out D:\temp\baseline.json
 ```
 
+## UI 验证约定（改界面只看这一节）
+
+改样式 / 布局 / XAML，**只做两件事：构建 + 出图**。
+**不要顺手跑单元测试**——测试留给逻辑改动，界面改动跑全量测试纯属浪费时间。
+
+```powershell
+# 构建表现层 → 15 秒内出 10 张图 → 没出图直接判失败
+powershell -ExecutionPolicy Bypass -File tools\ui-verify.ps1
+
+# 迭代聊天界面时更快：只出 AI 页一张
+powershell -ExecutionPolicy Bypass -File tools\ui-verify.ps1 -AiOnly
+```
+
+**判定规则（硬性）**
+
+- **超时固定 15 秒**。到点没出图 = 失败，**不要加大超时重试**，先看 `artifacts\shot-verify\error.txt`
+  （有内容通常是 XAML 解析或绑定异常），然后直接报告失败。
+- 只看"有没有 PNG"，不看张数（`-AiOnly` 只出 1 张）。
+- 脚本会先检查有没有正在运行的 `CameraControl` 实例；开着界面会出旧图或直接失败，先关掉。
+- 截图写到 `artifacts\shot-verify\`，核对完可整个删掉，不要提交。
+- Agent 出图后要**逐张读图**核对，别只看"文件是否存在"。
+
 ## 不可放宽的约束（历史决策，勿回退）
 
 | 约束 | 来源 |
@@ -103,10 +125,10 @@ Get-ChildItem src,tools -Include *.cs -Recurse | Select-String 'TODO-REALDATA'
 ```powershell
 # ① 图形界面（P4 新壳）
 dotnet build CameraControl.slnx
-.\src\CameraControl.Presentation\bin\Debug\net10.0-windows\CameraControl.exe
+.\src\CameraControl.Presentation\bin\Debug\net10.0-windows10.0.19041.0\CameraControl.exe
 
 # ② 不弹窗冒烟测试（CI/排障）
-dotnet .\src\CameraControl.Presentation\bin\Debug\net10.0-windows\CameraControl.dll --smoke-test D:\temp\smoke.txt
+dotnet .\src\CameraControl.Presentation\bin\Debug\net10.0-windows10.0.19041.0\CameraControl.dll --smoke-test D:\temp\smoke.txt
 
 # ③ 离线连拍振动分析（需真机；启动先跑自检）
 cd tools\CameraControl.Tools.BurstAnalyzer
