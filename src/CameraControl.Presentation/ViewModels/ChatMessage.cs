@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Documents;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace CameraControl.Presentation.ViewModels;
 
@@ -74,6 +75,14 @@ public sealed partial class ChatMessage : ObservableObject
     /// <summary>用量明细（点摘要弹出的小框里显示）。</summary>
     [ObservableProperty]
     private string _usageDetail = string.Empty;
+
+    /// <summary>用量小框是否打开（Popup 双向绑定：点任意处关闭时 Popup 会把 false 写回来）。</summary>
+    [ObservableProperty]
+    private bool _isUsageOpen;
+
+    /// <summary>点"用量"这一行：开/关小框。纯查看，关掉不需要提示。</summary>
+    [RelayCommand]
+    private void ToggleUsage() => IsUsageOpen = !IsUsageOpen;
 
     public bool HasUsage => UsageLine.Length > 0;
 

@@ -415,6 +415,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void RefreshAiProfiles()
     {
         LlmSettings settings = _llmSettings.Load();
+        string? activeBefore = _llmSettings.ActiveProfile()?.Id;
         LlmProfile? active = _llmSettings.ActiveProfile();
 
         string? previousId = AiSelectedProfile?.Id;
@@ -454,8 +455,8 @@ public sealed partial class MainViewModel : ObservableObject
             ? "未配置模型"
             : $"{active.Model} · 强度 {active.Strength}";
 
-        // 换配置 = 换上下文文件，对话区要跟着换
-        LoadAiHistory();
+        // 换配置才重载历史：关设置窗口也会走到这里，不能把刚发生的对话清掉
+        if (active?.Id != activeBefore) LoadAiHistory();
         RefreshContextInfo();
 
         Status = settings.Profiles.Count == 0

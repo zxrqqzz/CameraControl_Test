@@ -26,12 +26,15 @@ namespace CameraControl.Presentation;
 /// </summary>
 internal static class UiShotHarness
 {
-    public static int Run(string outputDirectory, IServiceProvider services, bool aiOnly = false, bool demoChat = false)
+    public static int Run(string outputDirectory, IServiceProvider services, bool aiOnly = false, bool demoChat = false, string? accent = null)
     {
         Directory.CreateDirectory(outputDirectory);
 
         try
         {
+            if (!string.IsNullOrWhiteSpace(accent))
+                ThemeService.Current.Preview(accent);   // 目检专用：换色不落盘
+
             RunCore(outputDirectory, services, aiOnly, demoChat);
             return 0;
         }

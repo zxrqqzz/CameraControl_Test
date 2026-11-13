@@ -635,7 +635,7 @@
                     </Grid>
                 </TabItem>
 
-                <!-- ─────────── AI：只有 in / out 两块（最小可用版，逐项加回来） ─────────── -->
+                <!-- ─────────── AI：只有 in / out 两块 ─────────── -->
                 <TabItem Header="AI">
                     <Grid Style="{StaticResource PageRoot}">
                         <Grid.RowDefinitions>
@@ -643,42 +643,180 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <ScrollViewer x:Name="ChatScroll" Grid.Row="0"
-                                      VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled"
-                                      Padding="0,0,8,0">
-                            <ItemsControl ItemsSource="{Binding AiMessages}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="0,0,0,10" MaxWidth="700" Padding="12,8">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="HorizontalAlignment" Value="Left" />
-                                                    <Setter Property="Background" Value="Transparent" />
-                                                    <Setter Property="BorderThickness" Value="0" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsUser}" Value="True">
-                                                            <Setter Property="HorizontalAlignment" Value="Right" />
-                                                            <Setter Property="Background" Value="{DynamicResource AccentTintBrush}" />
-                                                            <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
-                                                            <Setter Property="BorderThickness" Value="2" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
+                        <!-- ═══ out：对话流（我右：淡主色+黑框 / AI 左：白底无框） ═══ -->
+                        <Grid Grid.Row="0">
+                            <ScrollViewer x:Name="ChatScroll"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          Padding="0,0,8,0">
+                                <ItemsControl ItemsSource="{Binding AiMessages}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,14">
+                                                <Border x:Name="bubble" MaxWidth="700" HorizontalAlignment="Left">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Background" Value="Transparent" />
+                                                            <Setter Property="BorderThickness" Value="0" />
+                                                            <Setter Property="Padding" Value="0" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsUser}" Value="True">
+                                                                    <Setter Property="HorizontalAlignment" Value="Right" />
+                                                                    <Setter Property="Background" Value="{DynamicResource AccentTintBrush}" />
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource InkBrush}" />
+                                                                    <Setter Property="BorderThickness" Value="2" />
+                                                                    <Setter Property="Padding" Value="12,8" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsFailed}" Value="True">
+                                                                    <Setter Property="BorderBrush" Value="{StaticResource DangerBrush}" />
+                                                                    <Setter Property="BorderThickness" Value="2" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
 
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13"
-                                                           Foreground="{StaticResource TextPrimaryBrush}" />
-                                                <TextBlock FontSize="10" Foreground="{StaticResource TextDimBrush}"
-                                                           Text="{Binding TimeText}" />
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
+                                                    <StackPanel>
+                                                        <!-- ① 思考过程（折叠；按轮次再折一层） -->
+                                                        <Expander Visibility="{Binding HasRounds, Converter={StaticResource BoolToVisibility}}"
+                                                                  Header="{Binding ReasoningHeader}"
+                                                                  Margin="0,0,0,4">
+                                                            <Border BorderBrush="{StaticResource DividerBrush}"
+                                                                    BorderThickness="2,0,0,0" Padding="10,0,0,0">
+                                                                <ItemsControl ItemsSource="{Binding Rounds}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Expander Header="{Binding Header}" Margin="0,2">
+                                                                                <TextBlock Text="{Binding Reasoning}"
+                                                                                           FontSize="11.5"
+                                                                                           FontFamily="{StaticResource MonoFontFamily}"
+                                                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                                                           TextWrapping="Wrap" />
+                                                                            </Expander>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Border>
+                                                        </Expander>
 
+                                                        <!-- ② 执行步骤 / 工具调用（折叠） -->
+                                                        <Expander Visibility="{Binding HasSteps, Converter={StaticResource BoolToVisibility}}"
+                                                                  Header="{Binding StepsHeader}"
+                                                                  Margin="0,0,0,4">
+                                                            <Border BorderBrush="{StaticResource DividerBrush}"
+                                                                    BorderThickness="2,0,0,0" Padding="10,0,0,0">
+                                                                <ItemsControl ItemsSource="{Binding Steps}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <TextBlock Text="{Binding}"
+                                                                                       FontSize="11.5"
+                                                                                       FontFamily="{StaticResource MonoFontFamily}"
+                                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                                       TextWrapping="Wrap"
+                                                                                       Margin="0,1" />
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </Border>
+                                                        </Expander>
+
+                                                        <!-- ③ 正文：我=纯文本 / AI 流式=纯文本 / AI 完成=Markdown -->
+                                                        <TextBlock Text="{Binding Text}"
+                                                                   TextWrapping="Wrap"
+                                                                   FontSize="13"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                                   Visibility="{Binding ShowUserText, Converter={StaticResource BoolToVisibility}}" />
+
+                                                        <TextBox Text="{Binding Text, Mode=OneWay}"
+                                                                 IsReadOnly="True"
+                                                                 TextWrapping="Wrap"
+                                                                 Style="{StaticResource BareTextBox}"
+                                                                 FontSize="13"
+                                                                 Padding="0"
+                                                                 IsTabStop="False"
+                                                                 Visibility="{Binding ShowStreamingText, Converter={StaticResource BoolToVisibility}}" />
+
+                                                        <FlowDocumentScrollViewer Document="{Binding Document}"
+                                                                                  IsToolBarVisible="False"
+                                                                                  VerticalScrollBarVisibility="Disabled"
+                                                                                  Focusable="False"
+                                                                                  Background="Transparent"
+                                                                                  FontSize="13"
+                                                                                  Visibility="{Binding ShowDocument, Converter={StaticResource BoolToVisibility}}" />
+
+                                                        <!-- ④ 底部：时间 / 生成中 / 用量（点开小框，点任意处关闭） -->
+                                                        <Grid Margin="0,6,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <TextBlock Grid.Column="0" Text="{Binding TimeText}"
+                                                                       FontSize="10.5"
+                                                                       Foreground="{StaticResource TextDimBrush}"
+                                                                       VerticalAlignment="Center" />
+
+                                                            <TextBlock Grid.Column="1" Text="生成中…"
+                                                                       Margin="8,0,0,0"
+                                                                       FontSize="10.5"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       VerticalAlignment="Center"
+                                                                       Visibility="{Binding ShowStreamingText, Converter={StaticResource BoolToVisibility}}" />
+
+                                                            <Button Grid.Column="2"
+                                                                    Style="{StaticResource GhostButton}"
+                                                                    Padding="6,1" FontSize="10.5"
+                                                                    Foreground="{StaticResource TextDimBrush}"
+                                                                    Content="{Binding UsageLine}"
+                                                                    VerticalAlignment="Center"
+                                                                    Command="{Binding ToggleUsageCommand}"
+                                                                    Visibility="{Binding HasUsage, Converter={StaticResource BoolToVisibility}}"
+                                                                    ToolTip="查看本轮与累计用量" />
+                                                        </Grid>
+
+                                                        <Popup IsOpen="{Binding IsUsageOpen, Mode=TwoWay}"
+                                                               Placement="Mouse"
+                                                               StaysOpen="False"
+                                                               AllowsTransparency="True"
+                                                               PopupAnimation="Fade">
+                                                            <Border Background="{StaticResource CardBrush}"
+                                                                    BorderBrush="{StaticResource InkBrush}"
+                                                                    BorderThickness="2"
+                                                                    Padding="12,10"
+                                                                    MaxWidth="420">
+                                                                <TextBlock Text="{Binding UsageDetail}"
+                                                                           FontSize="11"
+                                                                           FontFamily="{StaticResource MonoFontFamily}"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                                           TextWrapping="Wrap" />
+                                                            </Border>
+                                                        </Popup>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <!-- 空状态 -->
+                            <TextBlock IsHitTestVisible="False" Margin="24">
+                                <TextBlock.Text>问点什么试试：&#10;「列出当前所有相机，并告诉我哪一台可以采集」</TextBlock.Text>
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasAiMessages}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+
+                        <!-- ═══ in：输入卡（底行 = 快捷键提示 · 模型/强度 · 发送） ═══ -->
                         <Border Grid.Row="1" Style="{StaticResource FlushCardBorderStyle}" Margin="0,10,0,0">
                             <Grid Margin="14,10,14,8">
                                 <Grid.RowDefinitions>
@@ -705,7 +843,8 @@
                                     <TextBlock Grid.Column="0" Style="{StaticResource CaptionTextStyle}"
                                                Text="Enter 发送 · Shift+Enter 换行" VerticalAlignment="Bottom" />
 
-                                    <Button Grid.Column="1" Style="{StaticResource GhostButton}"
+                                    <Button Grid.Column="1"
+                                            Style="{StaticResource GhostButton}"
                                             Padding="8,2" FontSize="11"
                                             Foreground="{StaticResource TextSecondaryBrush}"
                                             Content="{Binding AiModelLine}" Margin="0,0,10,0"
