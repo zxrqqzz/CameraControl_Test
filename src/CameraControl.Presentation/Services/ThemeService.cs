@@ -63,7 +63,8 @@ public sealed class ThemeService
         new("pop-violet", "紫", Color.FromRgb(0x7A, 0x4D, 0xFF)),
         new("pop-blue", "电光蓝", Color.FromRgb(0x00, 0x57, 0xFF)),
         new("pop-cyan", "青", Color.FromRgb(0x00, 0xB8, 0xD4)),
-        new("pop-green", "绿", Color.FromRgb(0x00, 0xA6, 0x51))
+        new("pop-green", "绿", Color.FromRgb(0x00, 0xA6, 0x51)),
+        new("pop-black", "黑", Color.FromRgb(0x0B, 0x0B, 0x0B)),
     ];
 
     private ISettingsStore? _store;
