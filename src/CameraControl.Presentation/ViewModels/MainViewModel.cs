@@ -341,6 +341,10 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _aiKeyStatus = "(未配置)";
 
+    /// <summary>主界面顶部的一行摘要（配置详情在设置窗口里）。</summary>
+    [ObservableProperty]
+    private string _aiSettingsSummary = "还没有配置模型";
+
     [ObservableProperty]
     private string _aiCatalogSource = string.Empty;
 
@@ -433,6 +437,10 @@ public sealed partial class MainViewModel : ObservableObject
                 : $"已加密保存 {active.KeyHint}";
 
         LoadCurrentSelection(active);
+
+        AiSettingsSummary = active is null
+            ? "还没有配置模型 —— 点右侧「设置…」填入密钥"
+            : $"{active.Name} · {active.Model} · 强度 {active.Strength}";
         RefreshContextInfo();
 
         Status = settings.Profiles.Count == 0
@@ -769,6 +777,77 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
 
+
+    // ── 流式执行：思考面板 / 实时答复 / 停止 ────────────────
+
+    /// <summary>本轮的思考与答复（按轮次分开，供折叠面板展示）。</summary>
+    public ObservableCollection<AiRound> AiRounds { get; } = [];
+
+    [ObservableProperty]
+    private bool _isAiRunning;
+
+    /// <summary>运行中显示流式纯文本，结束后切回 Markdown 渲染视图。</summary>
+    [ObservableProperty]
+    private bool _showRenderedAnswer = true;
+
+    /// <summary>流式过程中累积的答复（纯文本；结束后换成 Markdown 渲染）。</summary>
+    [ObservableProperty]
+    private string _aiLiveAnswer = string.Empty;
+
+    [ObservableProperty]
+    private string _aiThinkingHeader = "思考过程";
+
+    private CancellationTokenSource? _aiCancellation;
+
+    /// <summary>停止：立即中断（含正在执行的工具调用）。</summary>
+    [RelayCommand]
+    private void StopAi()
+    {
+        try
+        {
+            _aiCancellation?.Cancel();
+            Status = "已请求停止…";
+        }
+        catch (Exception ex)
+        {
+            Status = $"停止失败：{ex.Message}";
+        }
+    }
+
+    private AiRound RoundFor(int step)
+    {
+        AiRound? existing = AiRounds.FirstOrDefault(r => r.Step == step);
+
+        if (existing is not null) return existing;
+
+        var created = new AiRound(step);
+        AiRounds.Add(created);
+
+        return created;
+    }
+
+    /// <summary>
+    /// 进度回调。注意：<see cref="Progress{T}"/> 会回到 UI 线程，
+    /// 所以这里可以直接改绑定属性。
+    /// </summary>
+    private void OnAiProgress(AiProgressEvent e)
+    {
+        AiRound round = RoundFor(e.Step);
+
+        switch (e.Kind)
+        {
+            case AiProgressKind.ReasoningDelta:
+                round.AppendReasoning(e.Text);
+                AiThinkingHeader = $"思考过程（{AiRounds.Count} 轮）";
+                break;
+
+            case AiProgressKind.ContentDelta:
+                round.AppendAnswer(e.Text);
+                AiLiveAnswer += e.Text;
+                break;
+        }
+    }
+
     // ── 上下文（Mods/context 开关）───────────────────────────
 
     /// <summary>档位下拉的显示文本，顺序与 <see cref="ContextTier"/> 一致。</summary>
@@ -913,6 +992,29 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>管理：查看/删除全部上下文（含归档）。</summary>
+    /// <summary>打开 AI 设置窗口（模型 / 档位 / 上下文）。</summary>
+    [RelayCommand]
+    private void OpenAiSettings()
+    {
+        try
+        {
+            var window = new Views.AiSettingsWindow
+            {
+                Owner = System.Windows.Application.Current?.MainWindow,
+                DataContext = this
+            };
+
+            window.ShowDialog();
+            RefreshAiProfiles();
+        }
+        catch (Exception ex)
+        {
+            LogFailure("打开 AI 设置", ex, null);
+            Status = $"无法打开设置窗口：{ex.Message}";
+        }
+    }
+
+
     [RelayCommand]
     private void ManageContexts()
     {
@@ -968,6 +1070,15 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         AiSteps.Clear();
+        AiRounds.Clear();
+        AiLiveAnswer = string.Empty;
+        AiThinkingHeader = "思考过程";
+
+        using var cancellation = new CancellationTokenSource();
+        _aiCancellation = cancellation;
+        IsAiRunning = true;
+        ShowRenderedAnswer = false;
+
         AiAnswer = string.Empty;
 
         await RunGuardedAsync("AI 任务", async () =>
@@ -978,7 +1089,8 @@ public sealed partial class MainViewModel : ObservableObject
                     MaxSteps: 8,
                     ContextProfileId: _llmSettings.ActiveProfile()?.Id),
                 Actor.Ai("wpf-agent", Guid.NewGuid().ToString("N")[..8]),
-                CancellationToken.None);
+                cancellation.Token,
+                new Progress<AiProgressEvent>(OnAiProgress));
 
             foreach (AiStep step in result.Steps)
             {
@@ -995,6 +1107,9 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             ApplyAiUsage(result.Usage);
+            IsAiRunning = false;
+            ShowRenderedAnswer = true;
+            _aiCancellation = null;
             RefreshContextInfo();
 
             if (result.Completed)

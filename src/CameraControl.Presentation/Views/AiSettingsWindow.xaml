@@ -1,0 +1,224 @@
+<Window x:Class="CameraControl.Presentation.Views.AiSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AI 设置"
+        Width="800" Height="680"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BackgroundBrush}"
+        FontFamily="{StaticResource UiFontFamily}"
+        FontSize="13"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True"
+        DataContextChanged="OnDataContextChanged">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <Border Grid.Row="0" Style="{StaticResource AppHeaderBorder}">
+            <StackPanel>
+                <TextBlock Text="AI 设置" Style="{StaticResource PageTitle}" />
+                <TextBlock Style="{StaticResource PageSubtitle}"
+                           Text="密钥只写不读；模型与强度决定回答质量与速度。" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" Style="{StaticResource PageScroll}">
+            <StackPanel>
+
+                <!-- ① 新增配置：只填密钥 -->
+                <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="新增配置" Style="{StaticResource CardHeader}" Margin="0,0,0,12" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="密钥" Style="{StaticResource FieldLabelTextStyle}" />
+                            <PasswordBox Grid.Column="1" x:Name="ApiKeyBox" PasswordChanged="OnApiKeyChanged" />
+                            <Button Grid.Column="2" Content="识别并新增"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Margin="10,0,0,0"
+                                    Command="{Binding DetectAndAddProfileCommand}" />
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="60,8,0,0"
+                                   Text="填入密钥即可，会自动判断是哪家服务（先按前缀猜，不中再逐家探测）。保存后密钥不可查看、不可修改。" />
+
+                        <TextBlock Text="{Binding AiDetectStatus}"
+                                   Style="{StaticResource CaptionTextStyle}"
+                                   Margin="60,4,0,0" />
+
+                        <!-- 识别失败才出现的手填区 -->
+                        <Border Style="{StaticResource WarningBanner}" Margin="60,12,0,0"
+                                Visibility="{Binding AiShowManualBaseUrl, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="没能自动识别，手动指定服务地址：" FontSize="12"
+                                           Foreground="{StaticResource WarningBrush}" Margin="0,0,0,8" />
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBox Grid.Column="0"
+                                             ToolTip="如 https://api.example.com/v1"
+                                             Text="{Binding AiManualBaseUrl, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <Button Grid.Column="1" Content="用手填信息新增"
+                                            Margin="8,0,0,0"
+                                            Command="{Binding AddManualProfileCommand}" />
+                                </Grid>
+
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ComboBox Grid.Column="0" IsEditable="True"
+                                              ToolTip="模型名：可先拉取，也可直接填"
+                                              ItemsSource="{Binding AiManualModelOptions}"
+                                              Text="{Binding AiManualModel, UpdateSourceTrigger=PropertyChanged}" />
+                                </Grid>
+
+                                <TextBlock Text="{Binding AiManualStatus}" Style="{StaticResource CaptionTextStyle}"
+                                           Margin="0,6,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ② 使用中：切配置 / 切模型 / 切强度 -->
+                <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="使用中" Style="{StaticResource CardHeader}" Margin="0,0,0,12" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="配置" Style="{StaticResource FieldLabelTextStyle}" />
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding AiProfiles}"
+                                      SelectedItem="{Binding AiSelectedProfile}"
+                                      DisplayMemberPath="Display" />
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="10,0,0,0">
+                                <Button Content="使用" Command="{Binding UseAiProfileCommand}" />
+                                <Button Content="测试连通" Margin="6,0,0,0" Command="{Binding TestAiConnectionCommand}" />
+                                <Button Content="删除" Margin="6,0,0,0" Command="{Binding RemoveAiProfileCommand}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="{Binding AiKeyStatus}" Style="{StaticResource CaptionTextStyle}"
+                                   Margin="60,8,0,0" />
+
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="模型" Style="{StaticResource FieldLabelTextStyle}" />
+                            <ComboBox Grid.Column="1" IsEditable="True"
+                                      ItemsSource="{Binding AiCurrentModelOptions}"
+                                      Text="{Binding AiCurrentModel, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Grid.Column="2" Content="刷新模型" Margin="8,0,0,0"
+                                    Command="{Binding ReloadCurrentModelsCommand}" />
+
+                            <TextBlock Grid.Column="3" Text="强度" Style="{StaticResource FieldLabelTextStyle}"
+                                       Margin="16,0,8,0"
+                                       Visibility="{Binding AiStrengthSupported, Converter={StaticResource BoolToVisibility}}" />
+                            <ComboBox Grid.Column="4" Width="132"
+                                      SelectedIndex="{Binding AiStrengthIndex}"
+                                      Visibility="{Binding AiStrengthSupported, Converter={StaticResource BoolToVisibility}}">
+                                <ComboBoxItem Content="Off（关思考，最快）" />
+                                <ComboBoxItem Content="Low" />
+                                <ComboBoxItem Content="High（默认）" />
+                                <ComboBoxItem Content="Max（最慢最强）" />
+                            </ComboBox>
+
+                            <Button Grid.Column="5" Content="应用" Margin="10,0,0,0"
+                                    Style="{StaticResource OutlineButton}"
+                                    Command="{Binding ApplyCurrentSelectionCommand}" />
+                        </Grid>
+
+                        <TextBlock Text="{Binding AiCatalogSource}" Style="{StaticResource CaptionTextStyle}"
+                                   Margin="60,8,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ③ 上下文 -->
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel>
+                        <TextBlock Text="上下文" Style="{StaticResource CardHeader}" Margin="0,0,0,6" />
+                        <TextBlock Style="{StaticResource CaptionTextStyle}"
+                                   Text="对话会追加写入本地文档；档位决定它要不要作为模型输入。达到上限会自动归档并开新的。" />
+
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="档位" Style="{StaticResource FieldLabelTextStyle}" />
+                            <ComboBox Grid.Column="1"
+                                      ItemsSource="{Binding AiContextTierOptions}"
+                                      SelectedIndex="{Binding AiContextTierIndex}" />
+
+                            <Button Grid.Column="2" Content="开启新对话" Margin="10,0,0,0"
+                                    Command="{Binding StartNewContextCommand}"
+                                    Visibility="{Binding AiContextVisible, Converter={StaticResource BoolToVisibility}}" />
+                            <Button Grid.Column="3" Content="清空" Margin="6,0,0,0"
+                                    Command="{Binding ClearContextCommand}"
+                                    Visibility="{Binding AiContextVisible, Converter={StaticResource BoolToVisibility}}" />
+                            <Button Grid.Column="4" Content="管理…" Margin="6,0,0,0"
+                                    Command="{Binding ManageContextsCommand}"
+                                    Visibility="{Binding AiContextVisible, Converter={StaticResource BoolToVisibility}}" />
+                        </Grid>
+
+                        <TextBlock Text="{Binding AiContextSummary}" Style="{StaticResource CaptionTextStyle}"
+                                   Margin="60,8,0,0" />
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 底部：只留一个关闭（设置是即时生效的，没有"确定/取消"语义） -->
+        <Border Grid.Row="2" Style="{StaticResource StatusBarBorder}" Padding="20,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Style="{StaticResource CaptionTextStyle}"
+                           Text="所有设置即时生效，不需要保存。" VerticalAlignment="Center" />
+
+                <Button Grid.Column="1" Content="关闭" Width="88" Height="30"
+                        IsCancel="True" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

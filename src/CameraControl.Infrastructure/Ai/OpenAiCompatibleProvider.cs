@@ -15,7 +15,7 @@ namespace CameraControl.Infrastructure.Ai;
 ///
 /// 只实现本项目需要的最小面：chat/completions + function calling。
 /// </summary>
-public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
+public sealed partial class OpenAiCompatibleProvider : ILlmProvider, IStreamingLlmProvider, IDisposable
 {
     private const string ChatCompletionsPath = "chat/completions";
 
@@ -143,7 +143,7 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
     }
 
     /// <summary>构造请求体（internal 供测试断言字段，避免"改了但没生效"）。</summary>
-    internal string BuildRequestJson(LlmChatRequest request)
+    internal string BuildRequestJson(LlmChatRequest request, bool stream = false)
     {
         var messages = request.Messages.Select(ToWireMessage).ToArray();
 
@@ -170,7 +170,9 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IDisposable
             reasoning_effort = _reasoningEffort,
             // DeepSeek：显式关闭思考；其它厂商不传（不认这个字段会 400）
             thinking = _disableThinking ? new { type = "disabled" } : null,
-            max_tokens = request.MaxTokens
+            max_tokens = request.MaxTokens,
+            // 只有流式请求才显式带上；非流式保持不传（部分兼容实现不认 false）
+            stream = stream ? true : (bool?)null
         };
 
         return JsonSerializer.Serialize(payload, JsonOptions);

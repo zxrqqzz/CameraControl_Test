@@ -94,7 +94,8 @@ public sealed class CuaAgent : IAiAgent
     public async Task<AiTaskResult> RunAsync(
         AiTaskRequest request,
         Commands.Actor actor,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<AiProgressEvent>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(actor);
@@ -155,9 +156,8 @@ public sealed class CuaAgent : IAiAgent
             LlmChatResponse response;
             try
             {
-                response = await _provider.ChatAsync(
-                    new LlmChatRequest(messages, tools, request.Model),
-                    cancellationToken).ConfigureAwait(false);
+                response = await SendAsync(messages, tools, request, step, progress, cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -342,6 +342,52 @@ public sealed class CuaAgent : IAiAgent
     }
 
     /// <summary>把这一轮的"用户输入 + 模型最终输出"写进上下文。</summary>
+    /// <summary>
+    /// 发一轮请求：支持流式的提供方走 SSE（思考与正文实时回调），
+    /// 否则退回非流式（一次性返回，界面只在结束时刷新）。
+    /// </summary>
+    private async Task<LlmChatResponse> SendAsync(
+        List<LlmMessage> messages,
+        IReadOnlyList<LlmToolDefinition> tools,
+        AiTaskRequest request,
+        int step,
+        IProgress<AiProgressEvent>? progress,
+        CancellationToken cancellationToken)
+    {
+        var chatRequest = new LlmChatRequest(messages, tools, request.Model);
+
+        if (_provider is not IStreamingLlmProvider streaming)
+            return await _provider.ChatAsync(chatRequest, cancellationToken).ConfigureAwait(false);
+
+        progress?.Report(new AiProgressEvent(step, AiProgressKind.TurnStarted));
+
+        LlmChatResponse? completed = null;
+
+        await foreach (LlmStreamEvent item in streaming
+            .ChatStreamAsync(chatRequest, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            switch (item.Kind)
+            {
+                case LlmStreamKind.Reasoning:
+                    progress?.Report(new AiProgressEvent(step, AiProgressKind.ReasoningDelta, item.Text));
+                    break;
+
+                case LlmStreamKind.Content:
+                    progress?.Report(new AiProgressEvent(step, AiProgressKind.ContentDelta, item.Text));
+                    break;
+
+                case LlmStreamKind.Completed:
+                    completed = item.Response;
+                    break;
+            }
+        }
+
+        return completed ?? throw new LlmException(
+            LlmErrorCodes.Protocol,
+            "流式响应结束但没有收到完整内容。");
+    }
+
     private void RecordTurn(AiTaskRequest request, string? answer)
     {
         if (string.IsNullOrEmpty(request.ContextProfileId) || _context is null) return;

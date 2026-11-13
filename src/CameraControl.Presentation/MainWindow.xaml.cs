@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Windows.Input;
 using System.Windows;
 using CameraControl.Presentation.Markdown;
 using CameraControl.Presentation.ViewModels;
@@ -24,11 +25,7 @@ public partial class MainWindow : Window
         if (e.NewValue is not MainViewModel viewModel) return;
 
         _subscribed = viewModel;
-        viewModel.ApiKeyAccepted += (_, _) =>
-        {
-            ApiKeyBox.Clear();
-            viewModel.SetPendingApiKey(null);
-        };
+
 
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
@@ -66,9 +63,21 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnApiKeyChanged(object sender, RoutedEventArgs e)
+
+
+    /// <summary>
+    /// 输入框快捷键：Enter 发送，Shift+Enter 换行（聊天工具习惯）。
+    /// 输入框最大行数由 XAML 的 MaxLines 控制（常量，改这里即可调）。
+    /// </summary>
+    private void OnGoalKeyDown(object sender, KeyEventArgs e)
     {
-        if (DataContext is MainViewModel viewModel && sender is System.Windows.Controls.PasswordBox box)
-            viewModel.SetPendingApiKey(box.Password);
+        if (e.Key != Key.Enter) return;
+
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) return;
+
+        if (DataContext is MainViewModel viewModel && viewModel.RunAiCommand.CanExecute(null))
+            viewModel.RunAiCommand.Execute(null);
+
+        e.Handled = true;
     }
 }

@@ -9,7 +9,6 @@ using CameraControl.Composition;
 using CameraControl.Domain.Ports;
 using CameraControl.Presentation.Services;
 using CameraControl.Presentation.ViewModels;
-using CameraControl.Application.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CameraControl.Presentation;
@@ -150,7 +149,6 @@ public partial class App : System.Windows.Application
             _ = new MainWindow { DataContext = viewModel };
         });
 
-        if (viewModel is not null)
         // 回归：命令属性必须真实生成。
         // 曾经 RunAiAsync 误删 [RelayCommand]，按钮绑不到命令、点击毫无反应，
         // 而 WPF 绑定失败既不抛异常也不进日志——只能靠这条检查抓。
@@ -166,9 +164,24 @@ public partial class App : System.Windows.Application
         // Markdown 渲染：覆盖标题/列表/表格/代码块/链接，确认不抛且真的产出了内容。
         // 渲染器在代码后台调用；正常运行时崩了只会看到空白，只能靠这里抓。
         // 上下文：只是解析一次，确认 DI 接线没断（开关关掉也算正常，不在这里判失败）。
+        // 设置窗口是独立 XAML，主窗口加载成功不代表它没问题。
+        Check("加载 AI 设置窗口 XAML", () =>
+        {
+            _ = new Views.AiSettingsWindow { DataContext = viewModel };
+        });
+
         Check("解析 IContextStore", () =>
         {
             _ = _services!.GetRequiredService<CameraControl.Application.Cua.Context.IContextStore>();
+        });
+
+        // 上下文管理窗口同样是独立 XAML（列表行模板 + 空状态），
+        // 它只在用户点「管理…」时才构造，主窗口加载成功覆盖不到这里。
+        Check("加载上下文管理窗口 XAML", () =>
+        {
+            var store = _services!.GetRequiredService<CameraControl.Application.Cua.Context.IContextStore>();
+
+            _ = new Views.ContextManagerWindow(store, "smoke-profile", new RefusingDialogService());
         });
 
         Check("Markdown 渲染", () =>
@@ -199,6 +212,7 @@ public partial class App : System.Windows.Application
                 throw new InvalidOperationException("Markdown 渲染块数异常：" + document.Blocks.Count);
         });
 
+        if (viewModel is not null)
         {
             Check("执行启动自检", () => RunSelfCheck(viewModel));
 

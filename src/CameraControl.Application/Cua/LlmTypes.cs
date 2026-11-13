@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 
 namespace CameraControl.Application.Cua;
 
@@ -250,5 +251,52 @@ public static class JsonArgs
             .Where(e => e.ValueKind == JsonValueKind.String)
             .Select(e => e.GetString()!)
             .Where(s => !string.IsNullOrWhiteSpace(s))];
+    }
+}
+/// <summary>流式事件的类型。</summary>
+public enum LlmStreamKind
+{
+    /// <summary>思考增量（DeepSeek 的 reasoning_content）。</summary>
+    Reasoning = 0,
+
+    /// <summary>正文增量。</summary>
+    Content = 1,
+
+    /// <summary>本轮流结束，携带完整响应。</summary>
+    Completed = 2
+}
+
+/// <summary>一个流式事件。</summary>
+/// <param name="Kind">类型。</param>
+/// <param name="Text">增量文本（Completed 时为 null）。</param>
+/// <param name="Response">仅 Completed 事件携带。</param>
+public sealed record LlmStreamEvent(
+    LlmStreamKind Kind,
+    string? Text = null,
+    LlmChatResponse? Response = null);
+
+/// <summary>支持流式的提供方。</summary>
+public interface IStreamingLlmProvider
+{
+    /// <summary>逐段返回思考与正文，最后发出一个 Completed 事件。</summary>
+    IAsyncEnumerable<LlmStreamEvent> ChatStreamAsync(
+        LlmChatRequest request,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>流式入口（默认实现：不支持流式的提供方直接退化为一次 Completed）。</summary>
+public static class LlmStreamingExtensions
+{
+    /// <summary>非流式降级：调用一次 ChatAsync，然后发出一个 Completed 事件。</summary>
+    public static async IAsyncEnumerable<LlmStreamEvent> StreamOrFallbackAsync(
+        this ILlmProvider provider,
+        LlmChatRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        LlmChatResponse response = await provider
+            .ChatAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+
+        yield return new LlmStreamEvent(LlmStreamKind.Completed, Response: response);
     }
 }

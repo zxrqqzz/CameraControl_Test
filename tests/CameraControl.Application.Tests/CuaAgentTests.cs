@@ -403,4 +403,114 @@ public sealed class CuaAgentTests
         Assert.True(result.Completed);
         Assert.Equal("仍然完成", result.Answer);
     }
+
+    // ── 流式执行 ────────────────────────────────────────────
+
+    /// <summary>假流式提供方：验证代理确实走了流式通道。</summary>
+    private sealed class FakeStreamingProvider : ILlmProvider, IStreamingLlmProvider
+    {
+        public string Name => "流式假模型";
+
+        public bool UsedStream { get; private set; }
+
+        public Task<LlmChatResponse> ChatAsync(LlmChatRequest request, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("应当走流式，而不是非流式。");
+
+        public async IAsyncEnumerable<LlmStreamEvent> ChatStreamAsync(
+            LlmChatRequest request,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            UsedStream = true;
+
+            yield return new LlmStreamEvent(LlmStreamKind.Reasoning, "先想一下");
+            yield return new LlmStreamEvent(LlmStreamKind.Reasoning, "，再看设备");
+
+            await Task.Yield();
+
+            yield return new LlmStreamEvent(LlmStreamKind.Content, "共 2 台");
+            yield return new LlmStreamEvent(LlmStreamKind.Content, "相机");
+
+            yield return new LlmStreamEvent(
+                LlmStreamKind.Completed,
+                Response: new LlmChatResponse(
+                    LlmMessage.Assistant("共 2 台相机", null, "先想一下，再看设备"),
+                    new LlmUsage(10, 5),
+                    "stop",
+                    "req-1"));
+        }
+    }
+
+    private sealed class CollectingProgress : IProgress<AiProgressEvent>
+    {
+        public List<AiProgressEvent> Events { get; } = [];
+
+        public void Report(AiProgressEvent value) => Events.Add(value);
+    }
+
+    private static CuaAgent BuildWithProvider(ILlmProvider provider)
+    {
+        var registry = new CapabilityRegistry();
+        registry.Register(new CuaGetCapabilitiesCapability(registry, new FakeClock()));
+
+        var bus = new CommandBus(
+            registry,
+            new DefaultRiskPolicy(),
+            new InMemoryAuditLog(),
+            new FakeClock(),
+            new InMemoryMetrics(),
+            new FakeAppLogger());
+
+        return new CuaAgent(
+            provider,
+            registry,
+            new TestBinder(),
+            bus,
+            new InMemoryMetrics(),
+            new FakeAppLogger());
+    }
+
+    [Fact]
+    public async Task 应当走流式并上报思考与答复增量()
+    {
+        var provider = new FakeStreamingProvider();
+        CuaAgent agent = BuildWithProvider(provider);
+        var progress = new CollectingProgress();
+
+        AiTaskResult result = await agent.RunAsync(
+            new AiTaskRequest("列出相机"),
+            Actor.Ai("tester"),
+            CancellationToken.None,
+            progress);
+
+        Assert.True(provider.UsedStream);
+        Assert.Contains(progress.Events, e => e.Kind == AiProgressKind.ReasoningDelta);
+        Assert.Contains(progress.Events, e => e.Kind == AiProgressKind.ContentDelta);
+        Assert.Contains(progress.Events, e => e.Kind == AiProgressKind.TurnStarted);
+
+        string reasoning = string.Concat(
+            progress.Events.Where(e => e.Kind == AiProgressKind.ReasoningDelta).Select(e => e.Text));
+
+        Assert.Equal("先想一下，再看设备", reasoning);
+
+        Assert.True(result.Completed);
+        Assert.Equal("共 2 台相机", result.Answer);
+    }
+
+    [Fact]
+    public async Task 非流式提供方应自动降级且不报错()
+    {
+        var scripted = new ScriptedLlmProvider().ThenAnswer("非流式答复");
+        CuaAgent agent = BuildWithProvider(scripted);
+        var progress = new CollectingProgress();
+
+        AiTaskResult result = await agent.RunAsync(
+            new AiTaskRequest("随便"),
+            Actor.Ai("tester"),
+            CancellationToken.None,
+            progress);
+
+        Assert.True(result.Completed);
+        Assert.Equal("非流式答复", result.Answer);
+        Assert.DoesNotContain(progress.Events, e => e.Kind == AiProgressKind.ContentDelta);
+    }
 }

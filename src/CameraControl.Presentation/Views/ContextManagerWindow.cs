@@ -1,27 +1,49 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
-using System.Windows.Controls;
 using CameraControl.Application.Cua.Context;
 using CameraControl.Presentation.ViewModels;
 
 namespace CameraControl.Presentation.Views;
 
 /// <summary>
-/// 上下文管理窗口（纯代码构建，无 XAML）。
+/// 上下文管理窗口：列出该配置下所有上下文（含归档），可以逐条删除、打开目录手工清理。
+/// 不做编辑——上下文是只追加的。
 ///
-/// 这是「保留查询入口」的落点：列出该配置下所有上下文（含归档），
-/// 可以逐条删除、打开目录手工清理。不做编辑——上下文是只追加的。
+/// 视觉层在 ContextManagerWindow.xaml；这里只留数据装配与动作。
 /// </summary>
-public sealed class ContextManagerWindow : Window
+public partial class ContextManagerWindow : Window
 {
     private readonly IContextStore _store;
     private readonly string _profileId;
     private readonly IDialogService _dialog;
 
-    private readonly ListBox _list = new();
-    private readonly TextBlock _hint = new();
     private IReadOnlyList<ContextSnapshot> _snapshots = [];
+
+    /// <summary>列表行：把快照摊平成界面要显示的样子（当前/归档标记在这里算好）。</summary>
+    public sealed class ContextRow
+    {
+        public ContextRow(ContextSnapshot snapshot, bool isCurrent)
+        {
+            Id = snapshot.Id;
+            IsCurrent = isCurrent;
+            IsArchived = snapshot.IsArchived;
+            Meta =
+                $"{snapshot.CreatedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm}  ·  " +
+                $"{snapshot.EntryCount} 条  ·  {snapshot.EstimatedTokens:N0} tok";
+        }
+
+        public string Id { get; }
+
+        public bool IsCurrent { get; }
+
+        public bool IsArchived { get; }
+
+        public string Meta { get; }
+    }
+
+    public ObservableCollection<ContextRow> Rows { get; } = [];
 
     public ContextManagerWindow(IContextStore store, string profileId, IDialogService dialog)
     {
@@ -31,99 +53,36 @@ public sealed class ContextManagerWindow : Window
         _profileId = profileId;
         _dialog = dialog;
 
-        Title = "上下文管理";
-        Width = 760;
-        Height = 480;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        InitializeComponent();
 
-        Content = BuildContent();
+        DataContext = this;
         Reload();
-    }
-
-    private UIElement BuildContent()
-    {
-        var root = new DockPanel { Margin = new Thickness(12) };
-
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 8, 0, 0)
-        };
-
-        buttons.Children.Add(MakeButton("删除选中", DeleteSelected));
-        buttons.Children.Add(MakeButton("刷新", Reload));
-        buttons.Children.Add(MakeButton("打开文件夹", OpenFolder));
-        buttons.Children.Add(MakeButton("关闭", Close));
-
-        DockPanel.SetDock(buttons, Dock.Bottom);
-        root.Children.Add(buttons);
-
-        _hint.FontSize = 11;
-        _hint.Foreground = System.Windows.Media.Brushes.Gray;
-        _hint.Margin = new Thickness(0, 6, 0, 0);
-        _hint.TextWrapping = TextWrapping.Wrap;
-        DockPanel.SetDock(_hint, Dock.Bottom);
-        root.Children.Add(_hint);
-
-        _list.FontFamily = new System.Windows.Media.FontFamily("Consolas, Microsoft YaHei UI");
-        _list.FontSize = 12;
-        _list.Margin = new Thickness(0, 0, 0, 0);
-
-        root.Children.Add(_list);
-
-        return root;
-    }
-
-    private static Button MakeButton(string text, Action onClick)
-    {
-        var button = new Button
-        {
-            Content = text,
-            Width = 96,
-            Height = 28,
-            Margin = new Thickness(0, 0, 8, 0)
-        };
-
-        button.Click += (_, _) => onClick();
-
-        return button;
     }
 
     private void Reload()
     {
         _snapshots = _store.List(_profileId);
-
-        _list.Items.Clear();
-
-        if (_snapshots.Count == 0)
-        {
-            _hint.Text = "该配置下还没有上下文。";
-            return;
-        }
-
         string? activeId = _store.GetActiveContextId(_profileId);
 
+        Rows.Clear();
+
         foreach (ContextSnapshot snapshot in _snapshots)
-        {
-            string mark = snapshot.Id == activeId ? "● 当前" : snapshot.IsArchived ? "  归档" : "      ";
+            Rows.Add(new ContextRow(snapshot, snapshot.Id == activeId));
 
-            _list.Items.Add(
-                $"{mark}  {snapshot.Id}  {snapshot.CreatedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm}  " +
-                $"{snapshot.EntryCount,4} 条  {snapshot.EstimatedTokens,10:N0} tok");
-        }
+        EmptyText.Visibility = _snapshots.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        _hint.Text =
-            $"共 {_snapshots.Count} 份。上下文只会在末尾追加，不会改写已有内容；" +
-            "删除会连带删除磁盘上的 jsonl 文件。";
+        HintText.Text = _snapshots.Count == 0
+            ? "先在「AI」页跑一次，或换一个配置。"
+            : $"共 {_snapshots.Count} 份。上下文只会在末尾追加，不会改写已有内容；删除会连带删除磁盘上的 jsonl 文件。";
     }
 
     private void DeleteSelected()
     {
-        int index = _list.SelectedIndex;
+        int index = List.SelectedIndex;
 
         if (index < 0 || index >= _snapshots.Count)
         {
-            _hint.Text = "请先在列表里选中一份上下文。";
+            HintText.Text = "请先在列表里选中一份上下文。";
             return;
         }
 
@@ -137,7 +96,7 @@ public sealed class ContextManagerWindow : Window
 
         if (!confirmed)
         {
-            _hint.Text = "已取消删除。";
+            HintText.Text = "已取消删除。";
             return;
         }
 
@@ -146,11 +105,11 @@ public sealed class ContextManagerWindow : Window
             bool removed = _store.Delete(_profileId, target.Id);
 
             Reload();
-            _hint.Text = removed ? $"已删除 {target.Id}。" : $"没有找到 {target.Id}。";
+            HintText.Text = removed ? $"已删除 {target.Id}。" : $"没有找到 {target.Id}。";
         }
         catch (Exception ex)
         {
-            _hint.Text = $"删除失败：{ex.GetType().Name} / {ex.Message}";
+            HintText.Text = $"删除失败：{ex.GetType().Name} / {ex.Message}";
         }
     }
 
@@ -165,7 +124,7 @@ public sealed class ContextManagerWindow : Window
 
             if (!Directory.Exists(root))
             {
-                _hint.Text = "目录还不存在（还没有写入过上下文）。";
+                HintText.Text = "目录还不存在（还没有写入过上下文）。";
                 return;
             }
 
@@ -173,7 +132,15 @@ public sealed class ContextManagerWindow : Window
         }
         catch (Exception ex)
         {
-            _hint.Text = $"打开目录失败：{ex.Message}";
+            HintText.Text = $"打开目录失败：{ex.Message}";
         }
     }
+
+    private void OnDeleteClick(object sender, RoutedEventArgs e) => DeleteSelected();
+
+    private void OnReloadClick(object sender, RoutedEventArgs e) => Reload();
+
+    private void OnOpenFolderClick(object sender, RoutedEventArgs e) => OpenFolder();
+
+    private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 }

@@ -33,7 +33,7 @@ public partial class ConfirmationDialog : Window
             : $"人工（{actor.Name}）";
 
         // 只有物理/破坏性操作才显示红色警告
-        WarningText.Visibility = descriptor.Risk is RiskLevel.Physical or RiskLevel.Destructive
+        WarningBanner.Visibility = descriptor.Risk is RiskLevel.Physical or RiskLevel.Destructive
             ? Visibility.Visible
             : Visibility.Collapsed;
     }

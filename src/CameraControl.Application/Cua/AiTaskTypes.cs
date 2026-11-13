@@ -32,7 +32,12 @@ public sealed record AiToolInvocation(
 /// <param name="Step">序号（从 1 开始）。</param>
 /// <param name="AssistantText">模型这一轮的文字（可为空）。</param>
 /// <param name="Invocations">这一轮触发的工具调用。</param>
-public sealed record AiStep(int Step, string? AssistantText, IReadOnlyList<AiToolInvocation> Invocations);
+/// <param name="Reasoning">该轮的思考内容（模型的 reasoning_content）。</param>
+public sealed record AiStep(
+    int Step,
+    string? AssistantText,
+    IReadOnlyList<AiToolInvocation> Invocations,
+    string? Reasoning = null);
 
 /// <summary>任务结束原因。</summary>
 public enum AiStopReason
@@ -72,6 +77,28 @@ public sealed record AiTaskResult(
 }
 
 /// <summary>AI 代理端口。</summary>
+/// <summary>代理执行进度（供界面实时展示）。</summary>
+/// <param name="Step">第几轮。</param>
+/// <param name="Kind">事件类型。</param>
+/// <param name="Text">增量文本（思考或答复）。</param>
+public sealed record AiProgressEvent(int Step, AiProgressKind Kind, string? Text = null);
+
+/// <summary>进度事件类型。</summary>
+public enum AiProgressKind
+{
+    /// <summary>本轮请求已发出。</summary>
+    TurnStarted = 0,
+
+    /// <summary>思考增量。</summary>
+    ReasoningDelta = 1,
+
+    /// <summary>答复增量。</summary>
+    ContentDelta = 2,
+
+    /// <summary>本轮结束。</summary>
+    TurnCompleted = 3
+}
+
 public interface IAiAgent
 {
     /// <summary>提供方名称（审计用）。</summary>
@@ -80,7 +107,8 @@ public interface IAiAgent
     Task<AiTaskResult> RunAsync(
         AiTaskRequest request,
         Commands.Actor actor,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        IProgress<AiProgressEvent>? progress = null);
 }
 
 /// <summary>AI 相关错误码。</summary>

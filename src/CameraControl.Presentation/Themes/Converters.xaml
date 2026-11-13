@@ -1,0 +1,22 @@
+<!--
+    Converters.xaml —— 转换器实例
+    ══════════════════════════════════════════════════════════════════════════
+    为什么单独一份：转换器要同时被「页面 XAML」和「控件的 ControlTemplate」引用，
+    而 StaticResource 在模板里只往模板所属字典的 MergedDictionaries 里找——
+    App.xaml 里内联声明的资源模板是看不到的。放在这里，两边都合并它就行。
+    ══════════════════════════════════════════════════════════════════════════
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:svc="clr-namespace:CameraControl.Presentation.Services">
+
+    <svc:NullToCollapsedConverter x:Key="NullToCollapsed" />
+    <svc:NullToVisibleConverter x:Key="NullToVisible" />
+    <svc:EmptyToCollapsedConverter x:Key="EmptyToCollapsed" />
+
+    <!-- ComboBox 收起状态显示 DisplayMemberPath 指向的属性（自定义模板必须自己补） -->
+    <svc:DisplayMemberConverter x:Key="DisplayMember" />
+
+    <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+</ResourceDictionary>
