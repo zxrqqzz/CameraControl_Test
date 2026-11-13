@@ -443,11 +443,42 @@ public partial class App : System.Windows.Application
             MessageBoxImage.Error);
     }
 
+    /// <summary>
+    /// 同一个异常在窗口期内的重复计数（判重键 = 类型 + 消息 + 首行堆栈）。
+    ///
+    /// 为什么要节流：布局阶段抛出的异常会被反复重试——实测一次
+    /// "StaticResource 找不到"在几分钟里抛了 6 万多次，每次带完整堆栈，
+    /// 单日日志 448 MB，把工作区撑大一倍、VS 卡到崩。
+    /// 现在同一签名在 <see cref="ErrorThrottleWindow"/> 内只完整记一次，
+    /// 之后每累计 100 次补一条"已重复 N 次"，既不丢信息也不爆盘。
+    /// </summary>
+    private static readonly Dictionary<string, (DateTime AtUtc, int Count)> ErrorThrottle = [];
+
+    private static readonly object ErrorThrottleSync = new();
+
+    private static readonly TimeSpan ErrorThrottleWindow = TimeSpan.FromSeconds(60);
+
+    private const int ErrorThrottleReportEvery = 100;
+
     /// <summary>把未处理异常写进日志（含内部异常与堆栈），记日志本身不得再抛。</summary>
     private void LogUnhandled(Exception exception)
     {
         try
         {
+            string signature = BuildSignature(exception);
+
+            if (!ShouldWriteErrorLog(signature, out int repeated))
+            {
+                if (repeated % ErrorThrottleReportEvery == 0)
+                {
+                    _services?.GetService<IAppLogger>()?.Warn(
+                        $"同类异常已重复 {repeated} 次（后续同类仍只计数，不再展开堆栈）",
+                        new Dictionary<string, object?> { ["signature"] = signature });
+                }
+
+                return;
+            }
+
             _services?.GetService<IAppLogger>()?.Error("未处理的异常", new Dictionary<string, object?>
             {
                 ["type"] = exception.GetType().FullName,
@@ -460,5 +491,49 @@ public partial class App : System.Windows.Application
         {
             // 记录失败不能级联
         }
+    }
+
+    /// <summary>判重：窗口期内同签名只放行第一次；返回当前累计重复次数。</summary>
+    private static bool ShouldWriteErrorLog(string signature, out int repeated)
+    {
+        repeated = 0;
+
+        try
+        {
+            lock (ErrorThrottleSync)
+            {
+                DateTime now = DateTime.UtcNow;
+
+                if (ErrorThrottle.TryGetValue(signature, out (DateTime AtUtc, int Count) entry) &&
+                    now - entry.AtUtc < ErrorThrottleWindow)
+                {
+                    entry.Count++;
+                    ErrorThrottle[signature] = entry;
+                    repeated = entry.Count;
+                    return false;
+                }
+
+                // 表本身也不能无限长：异常花样多的时候定期清一次（不影响窗口判断的大局）
+                if (ErrorThrottle.Count > 200)
+                    ErrorThrottle.Clear();
+
+                ErrorThrottle[signature] = (now, 1);
+                return true;
+            }
+        }
+        catch
+        {
+            // 判重失败时宁可多记一条，也不要丢异常
+            return true;
+        }
+    }
+
+    private static string BuildSignature(Exception exception)
+    {
+        string stack = exception.StackTrace ?? string.Empty;
+        int newline = stack.IndexOf('\n');
+        string firstFrame = newline > 0 ? stack[..Math.Min(newline, 160)] : stack[..Math.Min(stack.Length, 160)];
+
+        return $"{exception.GetType().FullName}|{exception.Message}|{firstFrame}";
     }
 }

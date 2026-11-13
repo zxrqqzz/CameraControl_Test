@@ -382,13 +382,21 @@ public static class ServiceRegistration
 
     private static void ConfigureSerilog(string logDirectory, CompositionOptions options)
     {
+        // 单个日志文件的上限：10 MB。为什么必须有——
+        // 实测一次"界面模板解析失败"在布局循环里抛了 6 万多次，
+        // 每条约 7 KB 的堆栈，一天就把日志写成 448 MB（把工作区撑大一倍，
+        // VS 一边监听这个大文件一边编译，卡到崩）。有上限就永远只占 100 MB。
+        const long FileSizeLimitBytes = 10L * 1024 * 1024;
+
         LoggerConfiguration configuration = new LoggerConfiguration()
             .MinimumLevel.Is(ToSerilog(options.MinimumLogLevel))
             .Enrich.WithProperty("app", "CameraControl")
             .WriteTo.File(
                 Path.Combine(logDirectory, "app-.log"),
                 rollingInterval: RollingInterval.Day,
-                retainedFileCountLimit: 14,
+                retainedFileCountLimit: 10,
+                fileSizeLimitBytes: FileSizeLimitBytes,
+                rollOnFileSizeLimit: true,
                 shared: false);
 
         if (options.ConsoleLogging)
