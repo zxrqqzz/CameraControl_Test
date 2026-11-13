@@ -1,6 +1,7 @@
 <Window x:Class="CameraControl.Presentation.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:beh="clr-namespace:CameraControl.Presentation.Services"
         Title="CameraControl — 机器视觉工位控制"
         Height="780"
         Width="1200"
@@ -641,8 +642,9 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-
                         <!-- ═══ out：对话流（我右：淡主色+黑框 / AI 左：白底无框） ═══ -->
                         <Grid Grid.Row="0">
                             <ScrollViewer x:Name="ChatScroll"
@@ -730,14 +732,17 @@
                                                                  IsReadOnly="True"
                                                                  TextWrapping="Wrap"
                                                                  Style="{StaticResource BareTextBox}"
+                                                                 VerticalScrollBarVisibility="Disabled"
+                                                                 beh:WheelBehavior.PassThrough="True"
                                                                  FontSize="13"
-                                                                 Padding="0"
                                                                  IsTabStop="False"
                                                                  Visibility="{Binding ShowStreamingText, Converter={StaticResource BoolToVisibility}}" />
 
                                                         <FlowDocumentScrollViewer Document="{Binding Document}"
+                                                                                  beh:WheelBehavior.PassThrough="True"
                                                                                   IsToolBarVisible="False"
                                                                                   VerticalScrollBarVisibility="Disabled"
+                                                                                  HorizontalScrollBarVisibility="Auto"
                                                                                   Focusable="False"
                                                                                   Background="Transparent"
                                                                                   FontSize="13"
@@ -865,7 +870,40 @@
                                 </Grid>
                             </Grid>
                         </Border>
+
+                        <!-- ═══ 最底部：本上下文累计用量（点开小框看明细，点任意处关闭） ═══ -->
+                        <Border Grid.Row="2" Margin="0,8,0,0" Padding="0,6,0,0"
+                                BorderBrush="{StaticResource InkBrush}" BorderThickness="0,1,0,0">
+                            <Grid>
+                                <Button Style="{StaticResource GhostButton}"
+                                        HorizontalAlignment="Left"
+                                        Padding="0" FontSize="11"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Command="{Binding ToggleSessionUsageCommand}"
+                                        ToolTip="点击查看用量明细"
+                                        Content="{Binding SessionUsageLine}" />
+
+                                <Popup IsOpen="{Binding SessionUsageOpen, Mode=TwoWay}"
+                                       Placement="Mouse"
+                                       StaysOpen="False"
+                                       AllowsTransparency="True"
+                                       PopupAnimation="Fade">
+                                    <Border Background="{StaticResource CardBrush}"
+                                            BorderBrush="{StaticResource InkBrush}"
+                                            BorderThickness="2"
+                                            Padding="12,10"
+                                            MaxWidth="420">
+                                        <TextBlock Text="{Binding SessionUsageDetail}"
+                                                   FontSize="11"
+                                                   FontFamily="{StaticResource MonoFontFamily}"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   TextWrapping="Wrap" />
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
                     </Grid>
+
                 </TabItem>
             </TabControl>
 

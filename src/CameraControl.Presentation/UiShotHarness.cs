@@ -226,7 +226,7 @@ internal static class UiShotHarness
         done.AppendStep("[2] OK  capture.preview (238ms)");
         done.Text = answer;
         done.Document = MarkdownRenderer.Render(answer);
-        done.UsageLine = "本次 3,140 tok ｜ 会话 5,332 tok";
+        done.UsageLine = "本次 3,140 tok";
         done.UsageDetail = "示例数据：真实明细在运行时生成。";
         viewModel.AiMessages.Add(done);
 

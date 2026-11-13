@@ -762,36 +762,89 @@ public sealed partial class MainViewModel : ObservableObject
         if (usage is not null)
             _sessionUsage = _sessionUsage is null ? usage : _sessionUsage.Add(usage);
 
-        int sessionTotal = _sessionUsage?.TotalTokens ?? 0;
-
+        // 本轮摘要（气泡右下角）：只说这一轮，会话总量已经移到页面底栏
         message.UsageLine = usage is null
-            ? $"用量 — ｜ 会话 {sessionTotal:N0} tok"
-            : $"本次 {usage.TotalTokens:N0} tok ｜ 会话 {sessionTotal:N0} tok";
+            ? "用量 —"
+            : $"本次 {usage.TotalTokens:N0} tok";
 
         if (usage is null)
         {
             message.UsageDetail = "本次没有拿到用量（服务端未返回 usage 字段）。";
+        }
+        else
+        {
+            var text = new System.Text.StringBuilder();
+            text.AppendLine($"提供方 / 模型：{_agent.ProviderName} / {AiCurrentModel}");
+            text.AppendLine("—— 本轮 ——");
+            text.AppendLine($"未缓存输入：{usage.UncachedInputTokens:N0} tok");
+            text.AppendLine($"缓存读取：{usage.CachedTokens:N0} tok（命中 {usage.CacheHitRate:P1}）");
+            text.AppendLine($"输出：{usage.CompletionTokens:N0} tok");
+            text.AppendLine($"合计：{usage.TotalTokens:N0} tok");
+            text.AppendLine("—— 上下文 ——");
+            text.AppendLine(AiContextSummary);
+
+            message.UsageDetail = text.ToString().TrimEnd();
+        }
+
+        RefreshSessionUsage();
+
+        // 用量落盘：重启后历史对话仍能看到每一轮花了多少
+        if (usage is not null)
+            Services.UsageJournal.Append(_activeUsageContextId, usage);
+
+        RefreshSessionUsage();
+    }
+
+    /// <summary>
+    /// 会话累计用量（AI 页最底部那一行）。
+    /// 从每条消息的小框里剥离出来：单轮明细留在气泡里，总量只在这里出现一次。
+    /// </summary>
+    [ObservableProperty]
+    private string _sessionUsageLine = "本次运行累计：还没有调用模型";
+
+    private string? _activeUsageContextId;
+
+    /// <summary>底部那行"本上下文累计"是否展开明细小框。</summary>
+    [ObservableProperty]
+    private bool _sessionUsageOpen;
+
+    /// <summary>底部小框里的明细（输入/缓存/输出/合计 + 缓存命中率）。</summary>
+    [ObservableProperty]
+    private string _sessionUsageDetail = "还没有用量记录。";
+
+    [RelayCommand]
+    private void ToggleSessionUsage() => SessionUsageOpen = !SessionUsageOpen;
+
+    private void RefreshSessionUsage()
+    {
+        // 以落盘流水为准：历史轮次 + 本次运行都在里面，重启不清零
+        IReadOnlyList<Services.TurnUsageEntry> entries = Services.UsageJournal.Read(_activeUsageContextId);
+
+        if (entries.Count == 0)
+        {
+            SessionUsageLine = "本上下文累计：还没有用量记录";
+            SessionUsageDetail = "还没有用量记录。跑一次 AI 任务后这里会出现明细。";
             return;
         }
 
-        LlmUsage session = _sessionUsage!;
+        long uncached = entries.Sum(e => (long)e.UncachedInputTokens);
+        long cached = entries.Sum(e => (long)e.CachedTokens);
+        long completion = entries.Sum(e => (long)e.CompletionTokens);
+        long total = uncached + cached + completion;
 
-        var text = new System.Text.StringBuilder();
-        text.AppendLine($"提供方 / 模型：{_agent.ProviderName} / {AiCurrentModel}");
-        text.AppendLine("—— 本次 ——");
-        text.AppendLine($"未缓存输入：{usage.UncachedInputTokens:N0} tok");
-        text.AppendLine($"缓存读取：{usage.CachedTokens:N0} tok（命中 {usage.CacheHitRate:P1}）");
-        text.AppendLine($"输出：{usage.CompletionTokens:N0} tok");
-        text.AppendLine($"合计：{usage.TotalTokens:N0} tok");
-        text.AppendLine("—— 本会话累计 ——");
-        text.AppendLine($"未缓存输入：{session.UncachedInputTokens:N0} tok");
-        text.AppendLine($"缓存读取：{session.CachedTokens:N0} tok（命中 {session.CacheHitRate:P1}）");
-        text.AppendLine($"输出：{session.CompletionTokens:N0} tok");
-        text.AppendLine($"合计：{session.TotalTokens:N0} tok");
-        text.AppendLine("—— 上下文 ——");
-        text.AppendLine(AiContextSummary);
+        double hitRate = uncached + cached == 0 ? 0 : (double)cached / (uncached + cached);
 
-        message.UsageDetail = text.ToString().TrimEnd();
+        SessionUsageLine =
+            $"本上下文累计 {total:N0} tok（{entries.Count} 轮）　·　输入 {uncached + cached:N0}（缓存命中 {hitRate:P0}）　·　输出 {completion:N0}";
+
+        SessionUsageDetail =
+            $"上下文：{_activeUsageContextId ?? "(未启用)"}{Environment.NewLine}" +
+            $"轮次：{entries.Count}{Environment.NewLine}" +
+            "—— 合计 ——" + Environment.NewLine +
+            $"未缓存输入：{uncached:N0} tok{Environment.NewLine}" +
+            $"缓存读取：{cached:N0} tok（命中 {hitRate:P1}）{Environment.NewLine}" +
+            $"输出：{completion:N0} tok{Environment.NewLine}" +
+            $"总计：{total:N0} tok";
     }
 
     // ── 对话流：消息 / 流式 / 停止 ──────────────────────────
@@ -833,15 +886,50 @@ public sealed partial class MainViewModel : ObservableObject
         {
             LlmProfile? active = _llmSettings.ActiveProfile();
 
+            _activeUsageContextId = active is null || !_contextStore.IsEnabled
+                ? null
+                : _contextStore.GetActiveContextId(active.Id);
+
             if (active is not null && _contextStore.IsEnabled)
             {
                 IReadOnlyList<ContextEntry> entries = _contextStore.ReadActiveEntries(active.Id);
 
+                // 用量流水按"助手消息顺序"对应；从**末尾**对齐——
+                // 流水是后来才加的，老对话没有记录，最老的几轮必然对不上，宁可不显示也不要张冠李戴。
+                IReadOnlyList<Services.TurnUsageEntry> usage = Services.UsageJournal.Read(_activeUsageContextId);
+
+                var assistants = new List<ChatMessage>();
+
                 foreach (ContextEntry entry in entries.TakeLast(MaxHistoryMessages))
                 {
-                    AiMessages.Add(entry.Role == ContextEntryRole.User
-                        ? ChatMessage.User(entry.Text, entry.AtUtc)
-                        : BuildHistoryAssistant(entry));
+                    if (entry.Role == ContextEntryRole.User)
+                    {
+                        AiMessages.Add(ChatMessage.User(entry.Text, entry.AtUtc));
+                        continue;
+                    }
+
+                    ChatMessage assistant = BuildHistoryAssistant(entry);
+                    assistants.Add(assistant);
+                    AiMessages.Add(assistant);
+                }
+
+                int offset = assistants.Count - usage.Count;
+
+                for (int i = 0; i < assistants.Count; i++)
+                {
+                    int index = i - offset;
+
+                    if (index < 0 || index >= usage.Count) continue;
+
+                    Services.TurnUsageEntry item = usage[index];
+
+                    assistants[i].UsageLine = $"本次 {item.TotalTokens:N0} tok";
+                    assistants[i].UsageDetail =
+                        "—— 本轮（来自落盘记录）——" + Environment.NewLine +
+                        $"未缓存输入：{item.UncachedInputTokens:N0} tok{Environment.NewLine}" +
+                        $"缓存读取：{item.CachedTokens:N0} tok{Environment.NewLine}" +
+                        $"输出：{item.CompletionTokens:N0} tok{Environment.NewLine}" +
+                        $"合计：{item.TotalTokens:N0} tok";
                 }
             }
         }
@@ -854,6 +942,7 @@ public sealed partial class MainViewModel : ObservableObject
             });
         }
 
+        RefreshSessionUsage();
         NotifyChatChanged();
     }
 
