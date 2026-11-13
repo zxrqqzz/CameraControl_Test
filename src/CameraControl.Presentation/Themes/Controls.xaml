@@ -860,6 +860,9 @@
     </Style>
 
     <!-- 选项卡：选中 = 黄底 + 4px 黑下划线 -->
+    <!-- 选项卡：选中 = 主色底 + 4px 黑下划线。
+         注意：颜色只能设到**标题**（headerCp 的 TextElement.Foreground），
+         不能设 TabItem.Foreground —— 那会继承进整个页面内容，把正文染成白字。 -->
     <Style x:Key="TabItemStyle" TargetType="TabItem">
         <Setter Property="Foreground" Value="{StaticResource TextDimBrush}" />
         <Setter Property="FontSize" Value="13" />
@@ -870,8 +873,8 @@
                 <ControlTemplate TargetType="TabItem">
                     <Grid Background="Transparent">
                         <Border x:Name="bd" Padding="14,8" Background="Transparent">
-                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
+                            <ContentPresenter x:Name="headerCp" ContentSource="Header"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <Border x:Name="underline" Height="4" VerticalAlignment="Bottom"
                                 Background="Transparent" Margin="0,0,0,-2" />
@@ -879,12 +882,14 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="bd" Property="Background" Value="{StaticResource HoverBrush}" />
-                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            <Setter TargetName="headerCp" Property="TextElement.Foreground"
+                                    Value="{StaticResource TextPrimaryBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentHalftoneBrush}" />
-                            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
-                            <Setter Property="FontWeight" Value="Bold" />
+                            <Setter TargetName="headerCp" Property="TextElement.Foreground"
+                                    Value="{DynamicResource TextOnAccentBrush}" />
+                            <Setter TargetName="headerCp" Property="TextElement.FontWeight" Value="Bold" />
                             <Setter TargetName="underline" Property="Background" Value="{StaticResource InkBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>

@@ -667,7 +667,12 @@
                                                 </Style>
                                             </Border.Style>
 
-                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13" />
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13"
+                                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                                                <TextBlock FontSize="10" Foreground="{StaticResource TextDimBrush}"
+                                                           Text="{Binding TimeText}" />
+                                            </StackPanel>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
